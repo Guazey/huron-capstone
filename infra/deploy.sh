@@ -6,7 +6,8 @@
 # Usage: infra/deploy.sh            (Docker Desktop must be running)
 # Creates, in $REGION:
 #   ECR repo, IAM execution role, Cognito user pool + app client,
-#   AgentCore Memory, AgentCore runtime (HTTP protocol, JWT authorizer),
+#   AgentCore Memory, S3 bucket + Bedrock Managed Knowledge Base (SEC filings),
+#   AgentCore runtime (HTTP protocol, JWT authorizer),
 #   log retention policy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -127,6 +128,89 @@ done
 [[ "$MEMORY_STATUS" == "ACTIVE" ]] || { echo "timed out waiting for memory"; exit 1; }
 echo "  $MEMORY_ID"
 
+# ---------------------------------------------------------------- knowledge base
+step "3c/6 SEC filings: S3 bucket + Bedrock Managed Knowledge Base"
+if ! aws s3api head-bucket --bucket "$FILINGS_BUCKET" 2>/dev/null; then
+  aws s3api create-bucket --bucket "$FILINGS_BUCKET" \
+    --create-bucket-configuration "LocationConstraint=${REGION}" >/dev/null
+fi
+aws s3api put-public-access-block --bucket "$FILINGS_BUCKET" --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-encryption --bucket "$FILINGS_BUCKET" --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+# The KB's connector role: read this bucket, nothing else (managed KBs need
+# no vector-store or embedding-model permissions).
+KB_TRUST=$(cat <<JSON
+{"Version":"2012-10-17","Statement":[{
+  "Effect":"Allow","Principal":{"Service":"bedrock.amazonaws.com"},"Action":"sts:AssumeRole",
+  "Condition":{"StringEquals":{"aws:SourceAccount":"${ACCOUNT_ID}"},
+               "ArnLike":{"aws:SourceArn":"arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/*"}}}]}
+JSON
+)
+KB_POLICY=$(cat <<JSON
+{"Version":"2012-10-17","Statement":[
+ {"Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::${FILINGS_BUCKET}"},
+ {"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::${FILINGS_BUCKET}/*"}]}
+JSON
+)
+if ! aws iam get-role --role-name "$KB_ROLE_NAME" >/dev/null 2>&1; then
+  aws iam create-role --role-name "$KB_ROLE_NAME" --assume-role-policy-document "$KB_TRUST" >/dev/null
+  echo "  created KB role; waiting for IAM to propagate"; sleep 10
+fi
+aws iam put-role-policy --role-name "$KB_ROLE_NAME" --policy-name "${KB_ROLE_NAME}-s3-read" \
+  --policy-document "$KB_POLICY"
+
+KB_ID=$(aws bedrock-agent list-knowledge-bases \
+  --query "knowledgeBaseSummaries[?name=='${KB_NAME}'].knowledgeBaseId | [0]" --output text)
+if [[ "$KB_ID" == "None" ]]; then
+  KB_ID=$(aws bedrock-agent create-knowledge-base --name "$KB_NAME" \
+    --description "Recent 10-K and 10-Q filings for the market sidebar" \
+    --role-arn "arn:aws:iam::${ACCOUNT_ID}:role/${KB_ROLE_NAME}" \
+    --knowledge-base-configuration '{"type":"MANAGED","managedKnowledgeBaseConfiguration":{"embeddingModelType":"MANAGED"}}' \
+    --query knowledgeBase.knowledgeBaseId --output text)
+fi
+for _ in $(seq 1 60); do
+  KB_STATUS=$(aws bedrock-agent get-knowledge-base --knowledge-base-id "$KB_ID" \
+    --query knowledgeBase.status --output text)
+  [[ "$KB_STATUS" == "ACTIVE" ]] && break
+  [[ "$KB_STATUS" == *FAILED* ]] && { echo "knowledge base $KB_STATUS"; exit 1; }
+  echo "  knowledge base: $KB_STATUS"; sleep 10
+done
+[[ "$KB_STATUS" == "ACTIVE" ]] || { echo "timed out waiting for the knowledge base"; exit 1; }
+
+# Managed KBs use the managed connector shape, not the classic s3Configuration.
+KB_DATA_SOURCE_ID=$(aws bedrock-agent list-data-sources --knowledge-base-id "$KB_ID" \
+  --query "dataSourceSummaries[?name=='sec-filings-s3'].dataSourceId | [0]" --output text)
+if [[ "$KB_DATA_SOURCE_ID" == "None" ]]; then
+  DS_CONFIG=$(cat <<JSON
+{"type":"MANAGED_KNOWLEDGE_BASE_CONNECTOR","managedKnowledgeBaseConnectorConfiguration":{
+  "connectorParameters":{"type":"S3","version":"1","connectionConfiguration":{
+    "bucketName":"${FILINGS_BUCKET}","bucketOwnerAccountId":"${ACCOUNT_ID}"}}}}
+JSON
+)
+  KB_DATA_SOURCE_ID=$(aws bedrock-agent create-data-source --knowledge-base-id "$KB_ID" \
+    --name sec-filings-s3 --data-source-configuration "$DS_CONFIG" \
+    --query dataSource.dataSourceId --output text)
+fi
+for _ in $(seq 1 60); do
+  DS_STATUS=$(aws bedrock-agent get-data-source --knowledge-base-id "$KB_ID" \
+    --data-source-id "$KB_DATA_SOURCE_ID" --query dataSource.status --output text)
+  [[ "$DS_STATUS" == "AVAILABLE" ]] && break
+  [[ "$DS_STATUS" == *FAIL* || "$DS_STATUS" == "DELETE_UNSUCCESSFUL" ]] && { echo "data source $DS_STATUS"; exit 1; }
+  echo "  data source: $DS_STATUS"; sleep 10
+done
+[[ "$DS_STATUS" == "AVAILABLE" ]] || { echo "timed out waiting for the data source"; exit 1; }
+echo "  knowledge base $KB_ID, data source $KB_DATA_SOURCE_ID, bucket $FILINGS_BUCKET"
+
+# The agent may search this knowledge base and no other.
+KB_READ=$(cat <<JSON
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"bedrock:Retrieve",
+  "Resource":"arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/${KB_ID}"}]}
+JSON
+)
+aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "${NAME}-kb-read" --policy-document "$KB_READ"
+
 # ---------------------------------------------------------------- 4. runtime
 step "4/6 AgentCore runtime"
 # Cognito access tokens carry client_id (not aud), so authorize on allowedClients.
@@ -137,7 +221,7 @@ COMMON_ARGS=(
   --network-configuration '{"networkMode":"PUBLIC"}'
   --protocol-configuration '{"serverProtocol":"HTTP"}'
   --authorizer-configuration "$AUTHORIZER"
-  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\",\"MEMORY_ID\":\"${MEMORY_ID}\"}"
+  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\",\"MEMORY_ID\":\"${MEMORY_ID}\",\"KB_ID\":\"${KB_ID}\"}"
   # Forward the (already verified) bearer token so app.py can key memory by user.
   --request-header-configuration '{"requestHeaderAllowlist":["Authorization"]}'
 )
@@ -180,8 +264,11 @@ POOL_ID=${POOL_ID}
 CLIENT_ID=${CLIENT_ID}
 IMAGE=${IMAGE}
 MEMORY_ID=${MEMORY_ID}
+KB_ID=${KB_ID}
+KB_DATA_SOURCE_ID=${KB_DATA_SOURCE_ID}
+FILINGS_BUCKET=${FILINGS_BUCKET}
 EOF
-printf '\nDeployed. Wrote %s.\nFirst time: infra/create_user.sh, then infra/invoke.sh "How is NVDA doing today?"\n' "$OUTPUTS"
+printf '\nDeployed. Wrote %s.\nFirst time: infra/create_user.sh, then load filings (see sec_edgar.py), then infra/invoke.sh "How is NVDA doing today?"\n' "$OUTPUTS"
 
 # Hosted login for the Chrome extension + its build config.
 infra/login_setup.sh

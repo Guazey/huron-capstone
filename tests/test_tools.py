@@ -86,7 +86,7 @@ def test_search_ticker_nothing_found(monkeypatch):
 def test_every_tool_is_bound():
     assert [t.name for t in TOOLS] == [
         "search_ticker", "get_stock_price", "get_price_history", "get_market_overview", "get_news",
-        "get_company_profile", "get_earnings",
+        "get_company_profile", "get_earnings", "search_sec_filings",
     ]
 
 

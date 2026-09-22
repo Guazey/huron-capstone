@@ -108,6 +108,14 @@ test_cases = [
         "grounded": True,
     },
     {
+        # RAG: answers about what a company says about itself come from its
+        # SEC filings in the Bedrock knowledge base, linked to sec.gov.
+        "question": "What risk factors does Tesla highlight in its latest 10-K?",
+        "expect_tool": "search_sec_filings",
+        "tool_says": "sec.gov/Archives",
+        "grounded": True,
+    },
+    {
         "question": "Should I buy TSLA right now?",
         "grounded": True,
         "forbid": r"(?i)\byou should (buy|sell)\b|\bI (recommend|suggest) (buying|selling)\b",
