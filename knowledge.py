@@ -48,7 +48,10 @@ def search(query: str, ticker: str | None = None, limit: int = 5) -> list[dict]:
     response = _runtime().retrieve(
         knowledgeBaseId=os.environ["KB_ID"],
         retrievalQuery={"text": q[:1000]},
-        retrievalConfiguration={"vectorSearchConfiguration": {"numberOfResults": CANDIDATES}},
+        # Managed KBs take managedSearchConfiguration; vectorSearchConfiguration
+        # is rejected. Their filters don't support contains/startsWith, so the
+        # company filter happens below, from each passage's S3 key.
+        retrievalConfiguration={"managedSearchConfiguration": {"numberOfResults": CANDIDATES}},
     )
     passages = []
     for r in response.get("retrievalResults", []):

@@ -18,6 +18,7 @@ type Message = {
 const EXAMPLES = [
   "What's the biggest news in the market today?",
   "How is NVDA doing today?",
+  "What risks does Tesla list in its latest 10-K?",
   "How has TSLA moved over the last 3 months, and why?",
 ];
 
@@ -29,6 +30,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_news: "news",
   get_company_profile: "company profile",
   get_earnings: "earnings",
+  search_sec_filings: "SEC filings",
 };
 
 const CHAT_KEY = "chat";

@@ -19,12 +19,17 @@ an answer that used tool data without a source link.
 Needs AWS (Bedrock) and internet (Yahoo). Costs a few cents per run.
 """
 import re
+import time
+
+from botocore.exceptions import ClientError
 
 from langgraph.checkpoint.memory import InMemorySaver
 
 import market_data
 from graph import with_memory
 
+PAUSE_SECONDS = 2
+THROTTLE_BACKOFF_SECONDS = 45
 DOLLARS = re.compile(r"\$\s?([\d,]+(?:\.\d+)?)")
 NUMBER = re.compile(r"\d+(?:\.\d+)?")
 # Checked on every case: side notes are where the model slips in unsupported
@@ -141,10 +146,10 @@ def _invented(answer_amounts, tool_amounts):
     return sorted(invented)
 
 
-def check(case, messages):
-    """Return (passed, reason)."""
+def check(case, messages, earlier=()):
+    """Return (passed, reason). `earlier` is the conversation before this turn."""
     final_answer = messages[-1].content
-    tool_outputs = " ".join(m.content for m in messages if m.type == "tool")
+    tool_outputs = " ".join(m.content for m in [*earlier, *messages] if m.type == "tool")
     tools_called = {c["name"] for m in messages for c in getattr(m, "tool_calls", None) or []}
 
     if "expect_tool" in case and case["expect_tool"] not in tools_called:
@@ -176,6 +181,18 @@ def check(case, messages):
     return True, ""
 
 
+def _invoke(graph, question, config):
+    """One turn, spaced out and retried once, because Bedrock throttles bursts."""
+    time.sleep(PAUSE_SECONDS)
+    try:
+        return graph.invoke({"messages": [("user", question)]}, config)
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "ThrottlingException":
+            raise
+        time.sleep(THROTTLE_BACKOFF_SECONDS)
+        return graph.invoke({"messages": [("user", question)]}, config)
+
+
 def _last_user_index(messages):
     return max(i for i, m in enumerate(messages) if m.type == "human")
 
@@ -190,14 +207,16 @@ def run_eval():
             # Multi-turn cases replay earlier questions on one thread first.
             graph = with_memory(InMemorySaver())
             config = {"configurable": {"thread_id": f"eval-{len(results)}", "actor_id": "eval"}}
-            for earlier in case.get("history", []):
-                graph.invoke({"messages": [("user", earlier)]}, config)
-            result = graph.invoke({"messages": [("user", case["question"])]}, config)
-            # Judge only this turn: tools and outputs from earlier turns don't count.
-            result["messages"] = result["messages"][_last_user_index(result["messages"]):]
+            for earlier_question in case.get("history", []):
+                _invoke(graph, earlier_question, config)
+            result = _invoke(graph, case["question"], config)
+            # Tools must be called on this turn, but numbers may come from any
+            # tool result in the conversation (that's what memory is for).
+            earlier = result["messages"][:_last_user_index(result["messages"])]
+            result["messages"] = result["messages"][len(earlier):]
         finally:
             market_data.get_news = original
-        passed, reason = check(case, result["messages"])
+        passed, reason = check(case, result["messages"], earlier)
         results.append((case["question"], passed, reason, result["messages"][-1].content))
     return results
 

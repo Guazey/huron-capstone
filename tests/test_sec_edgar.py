@@ -82,7 +82,8 @@ def test_missing_user_agent_exits(monkeypatch):
 def fake_results(*items):
     return {"retrievalResults": [
         {"content": {"text": text}, "score": score,
-         "location": {"type": "S3", "s3Location": {"uri": f"s3://b/{key}"}}}
+         "location": {"type": "S3", "s3Location": {
+             "uri": f"https://b.s3.us-west-2.amazonaws.com/{key}"}}}
         for key, text, score in items
     ]}
 
@@ -105,6 +106,8 @@ def test_search_keeps_one_company_and_trims(monkeypatch):
     monkeypatch.setattr(knowledge, "_client", Client())
     passages = knowledge.search("supply chain risk", "TSLA")
     assert calls[0]["retrievalQuery"] == {"text": "TSLA supply chain risk"}
+    assert calls[0]["retrievalConfiguration"] == {
+        "managedSearchConfiguration": {"numberOfResults": knowledge.CANDIDATES}}
     assert [p["ticker"] for p in passages] == ["TSLA"]
     assert passages[0]["text"].startswith("Tesla risk x")
     assert len(passages[0]["text"]) == knowledge.MAX_PASSAGE_CHARS
