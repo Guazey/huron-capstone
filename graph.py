@@ -19,7 +19,13 @@ graph.add_edge(START, "agent")
 graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
 graph.add_edge("tools", "agent")
 
+# Stateless: each invoke starts from the messages it's given (CLI, eval).
 app = graph.compile()
+
+
+def with_memory(checkpointer):
+    """The same graph, but each thread_id keeps its conversation between calls."""
+    return graph.compile(checkpointer=checkpointer)
 
 
 if __name__ == "__main__":

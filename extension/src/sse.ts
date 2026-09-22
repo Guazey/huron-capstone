@@ -4,10 +4,11 @@
 export type AgentEvent =
   | { type: "tool"; name: string }
   | { type: "text"; text: string }
+  | { type: "sources"; urls: string[] }
   | { type: "done"; request_id: string }
   | { type: "error"; message: string; request_id?: string };
 
-const KNOWN = new Set(["tool", "text", "done", "error"]);
+const KNOWN = new Set(["tool", "text", "sources", "done", "error"]);
 
 /**
  * Parse every complete event in `buffer`. Network chunks can split an event

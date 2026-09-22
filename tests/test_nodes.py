@@ -31,7 +31,7 @@ def test_known_tool_returns_result(monkeypatch):
     state = {"messages": [ai_with_calls(("get_stock_price", {"ticker": "TSLA"}))]}
     out = tools_node(state)["messages"]
     assert len(out) == 1
-    assert out[0]["content"] == "TSLA: $248.50 as of 2026-09-22"
+    assert out[0]["content"].splitlines()[0] == "TSLA: $248.50 as of 2026-09-22"
     assert out[0]["tool_call_id"] == "call-0"
     assert "status" not in out[0]
 
@@ -70,3 +70,22 @@ def test_every_call_gets_exactly_one_result(monkeypatch):
     )]}
     out = tools_node(state)["messages"]
     assert [r["tool_call_id"] for r in out] == ["call-0", "call-1", "call-2"]
+
+
+def test_history_is_trimmed_at_a_user_turn():
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    from nodes import MAX_HISTORY_MESSAGES, recent_history
+
+    msgs = []
+    for i in range(20):
+        msgs += [
+            HumanMessage(f"q{i}"),
+            AIMessage(content="", tool_calls=[{"name": "get_stock_price", "args": {}, "id": f"c{i}"}]),
+            ToolMessage(content="$1", tool_call_id=f"c{i}"),
+            AIMessage(content=f"a{i}"),
+        ]
+    kept = recent_history(msgs)
+    assert len(kept) <= MAX_HISTORY_MESSAGES
+    assert isinstance(kept[0], HumanMessage)
+    assert kept[-1].content == "a19"

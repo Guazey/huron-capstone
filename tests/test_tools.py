@@ -17,7 +17,10 @@ def quotes(monkeypatch):
 
 def test_known_ticker_returns_price_date_and_change(quotes):
     out = get_stock_price.invoke({"ticker": "AAPL"})
-    assert out == "AAPL: $227.14 as of 2026-09-22 (previous close $225.00, +0.95%)"
+    assert out == (
+        "AAPL: $227.14 as of 2026-09-22 (previous close $225.00, +0.95%)\n"
+        "Source: <https://finance.yahoo.com/quote/AAPL/>"
+    )
 
 
 def test_ticker_is_normalized(quotes):
@@ -25,7 +28,7 @@ def test_ticker_is_normalized(quotes):
 
 
 def test_first_day_of_trading_has_no_change(quotes):
-    assert get_stock_price.invoke({"ticker": "NEWCO"}) == "NEWCO: $10.00 as of 2026-09-22"
+    assert get_stock_price.invoke({"ticker": "NEWCO"}).splitlines()[0] == "NEWCO: $10.00 as of 2026-09-22"
 
 
 def test_unknown_ticker_reports_not_found(quotes):
@@ -49,7 +52,8 @@ def test_history_summary(monkeypatch):
     out = get_price_history.invoke({"ticker": "nvda", "period": "1mo"})
     assert out == (
         "NVDA over 1mo (2026-08-22 to 2026-09-22): $200.00 -> $220.00 (+10.00%), "
-        "high $230.50, low $195.25"
+        "high $230.50, low $195.25\n"
+        "Source: <https://finance.yahoo.com/quote/NVDA/history/>"
     )
 
 
@@ -70,7 +74,7 @@ def test_search_ticker_lists_matches(monkeypatch):
     ])
     assert search_ticker.invoke({"query": "SpaceX"}) == (
         "Listed securities matching 'SpaceX', most relevant first:\n"
-        "- SPCX: Space Exploration Technologies (Equity, NASDAQ)"
+        "- SPCX: Space Exploration Technologies (Equity, NASDAQ) <https://finance.yahoo.com/quote/SPCX/>"
     )
 
 
@@ -82,6 +86,7 @@ def test_search_ticker_nothing_found(monkeypatch):
 def test_every_tool_is_bound():
     assert [t.name for t in TOOLS] == [
         "search_ticker", "get_stock_price", "get_price_history", "get_market_overview", "get_news",
+        "get_company_profile", "get_earnings",
     ]
 
 
@@ -117,4 +122,33 @@ def test_overview_tool_formats(monkeypatch):
     })
     out = get_market_overview.invoke({})
     assert out.splitlines()[:3] == ["US market: U.S. markets closed", "Indexes:", "- S&P 500 (^GSPC): 7,764.64 (-0.00%)"]
-    assert "- VKTX Viking: $40.85 (+35.67%)" in out
+    assert "- VKTX Viking: $40.85 (+35.67%) <https://finance.yahoo.com/quote/VKTX/>" in out
+
+
+def test_yahoo_urls_encode_index_symbols():
+    from tools import yahoo_url
+
+    assert yahoo_url("^GSPC") == "https://finance.yahoo.com/quote/%5EGSPC/"
+    assert yahoo_url("BRK-B", "history") == "https://finance.yahoo.com/quote/BRK-B/history/"
+
+
+def test_profile_and_earnings_cite_their_pages(monkeypatch):
+    from tools import get_company_profile, get_earnings
+
+    monkeypatch.setattr(market_data, "get_profile", lambda s: {
+        "symbol": s, "name": "Tesla, Inc.", "summary": "Makes cars.",
+        **{k: None for k in market_data.PROFILE_FIELDS},
+    })
+    monkeypatch.setattr(market_data, "get_earnings", lambda s: {
+        "symbol": s, "next": {"date": "2026-10-21", "eps_estimate": 0.45},
+        "recent": [{"date": "2026-07-22", "eps_estimate": 0.54, "eps_actual": 0.33, "surprise_pct": -39.15}],
+    })
+    profile = get_company_profile.invoke({"ticker": "TSLA"})
+    assert profile.splitlines()[-1] == (
+        "Source: <https://finance.yahoo.com/quote/TSLA/company-profile/> , "
+        "<https://finance.yahoo.com/quote/TSLA/statistics/> , "
+        "<https://finance.yahoo.com/quote/TSLA/analysis/>"
+    )
+    earnings = get_earnings.invoke({"ticker": "TSLA"})
+    assert "- Reported 2026-07-22: EPS $0.33 vs estimate $0.54, missed by 39.1%" in earnings
+    assert "<https://finance.yahoo.com/calendar/earnings?symbol=TSLA>" in earnings

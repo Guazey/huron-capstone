@@ -14,6 +14,7 @@ cat <<EOF
 This permanently deletes, in ${REGION}:
   AgentCore runtime   ${RUNTIME_NAME} (${RUNTIME_ID})
   Cognito user pool   ${NAME} (${POOL_ID}) and its users
+  AgentCore Memory    ${MEMORY_NAME} (all saved chats)
   IAM role            ${ROLE_NAME}
   ECR repo            ${NAME} and every image in it
   Log groups          /aws/bedrock-agentcore/runtimes/${RUNTIME_ID}*
@@ -29,6 +30,11 @@ if [[ "$RUNTIME_ID" != "None" ]]; then
       --query 'logGroups[].logGroupName' --output text); do
     aws logs delete-log-group --log-group-name "$group" && echo "deleted $group"
   done
+fi
+MEMORY_ID=$(aws bedrock-agentcore-control list-memories \
+  --query "memories[?starts_with(id, '${MEMORY_NAME}-')].id | [0]" --output text)
+if [[ "$MEMORY_ID" != "None" ]]; then
+  aws bedrock-agentcore-control delete-memory --memory-id "$MEMORY_ID" >/dev/null && echo "deleted memory (all chat history)"
 fi
 if [[ "$POOL_ID" != "None" ]]; then
   aws cognito-idp delete-user-pool --user-pool-id "$POOL_ID" && echo "deleted user pool"

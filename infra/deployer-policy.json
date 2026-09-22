@@ -64,7 +64,8 @@
       "Effect": "Allow",
       "Action": [
         "bedrock-agentcore:*AgentRuntime*",
-        "bedrock-agentcore:*WorkloadIdentit*"
+        "bedrock-agentcore:*WorkloadIdentit*",
+        "bedrock-agentcore:*Memor*"
       ],
       "Resource": "*",
       "Condition": { "StringEquals": { "aws:RequestedRegion": "us-west-2" } }
@@ -74,7 +75,8 @@
       "Effect": "Allow",
       "Action": [
         "bedrock-agentcore:*AgentRuntime*",
-        "bedrock-agentcore:*WorkloadIdentit*"
+        "bedrock-agentcore:*WorkloadIdentit*",
+        "bedrock-agentcore:*Memor*"
       ],
       "Resource": "arn:aws:bedrock-agentcore:us-west-2:*:*"
     },

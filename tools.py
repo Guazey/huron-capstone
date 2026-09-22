@@ -1,8 +1,24 @@
 from typing import Literal
+from urllib.parse import quote
 
 from langchain_core.tools import tool
 
 import market_data
+
+YAHOO = "https://finance.yahoo.com"
+
+
+def yahoo_url(symbol: str, page: str = "") -> str:
+    """The Yahoo Finance page a tool's data comes from, so answers can cite it.
+
+    Paths checked by hand (2026-09-22): quote, history, company-profile,
+    statistics, analysis. /profile/ and /key-statistics/ are 404s now.
+    """
+    return f"{YAHOO}/quote/{quote(symbol, safe='')}/{page + '/' if page else ''}"
+
+
+def _sources(*urls: str) -> str:
+    return "Source: " + " , ".join(f"<{u}>" for u in urls)
 
 
 def _pct(new: float, old: float) -> str:
@@ -15,16 +31,16 @@ def get_stock_price(ticker: str) -> str:
     symbol = market_data.normalize_ticker(ticker)
     if symbol is None:
         return f"No price found for {ticker}: not a valid ticker symbol"
-    quote = market_data.get_quote(symbol)
-    if quote is None:
+    q = market_data.get_quote(symbol)
+    if q is None:
         return f"No price found for {symbol}"
-    line = f"{symbol}: ${quote['price']:.2f} as of {quote['as_of']}"
-    if quote["previous_close"]:
+    line = f"{symbol}: ${q['price']:.2f} as of {q['as_of']}"
+    if q["previous_close"]:
         line += (
-            f" (previous close ${quote['previous_close']:.2f}, "
-            f"{_pct(quote['price'], quote['previous_close'])})"
+            f" (previous close ${q['previous_close']:.2f}, "
+            f"{_pct(q['price'], q['previous_close'])})"
         )
-    return line
+    return f"{line}\n{_sources(yahoo_url(symbol))}"
 
 
 @tool
@@ -42,7 +58,8 @@ def get_price_history(
         f"{symbol} over {period} ({h['start_date']} to {h['end_date']}): "
         f"${h['start_close']:.2f} -> ${h['end_close']:.2f} "
         f"({_pct(h['end_close'], h['start_close'])}), "
-        f"high ${h['high']:.2f}, low ${h['low']:.2f}"
+        f"high ${h['high']:.2f}, low ${h['low']:.2f}\n"
+        f"{_sources(yahoo_url(symbol, 'history'))}"
     )
 
 
@@ -58,7 +75,9 @@ def search_ticker(query: str) -> str:
         return f"No listed securities found for {query!r}"
     lines = [f"Listed securities matching {query!r}, most relevant first:"]
     for m in matches:
-        lines.append(f"- {m['symbol']}: {m['name']} ({m['type']}, {m['exchange']})")
+        lines.append(
+            f"- {m['symbol']}: {m['name']} ({m['type']}, {m['exchange']}) <{yahoo_url(m['symbol'])}>"
+        )
     return "\n".join(lines)
 
 
@@ -84,7 +103,14 @@ def get_market_overview() -> str:
     for key, title in titles.items():
         lines.append(f"{title}:")
         for m in o["movers"].get(key) or []:
-            lines.append(f"- {m['symbol']} {m['name']}: ${_fmt_price(m['price'])} ({_fmt_pct(m['change_pct'])})")
+            lines.append(
+                f"- {m['symbol']} {m['name']}: ${_fmt_price(m['price'])} "
+                f"({_fmt_pct(m['change_pct'])}) <{yahoo_url(m['symbol'])}>"
+            )
+    lines.append(_sources(
+        f"{YAHOO}/markets/", f"{YAHOO}/markets/stocks/gainers/",
+        f"{YAHOO}/markets/stocks/losers/", f"{YAHOO}/markets/stocks/most-active/",
+    ))
     return "\n".join(lines)
 
 
@@ -109,7 +135,85 @@ def get_news(ticker: str | None = None) -> str:
     return "\n".join(lines)
 
 
-TOOLS = [search_ticker, get_stock_price, get_price_history, get_market_overview, get_news]
+def _fmt_big(value) -> str:
+    if not isinstance(value, (int, float)):
+        return "n/a"
+    for size, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M")):
+        if abs(value) >= size:
+            return f"${value / size:,.2f}{suffix}"
+    return f"${value:,.0f}"
+
+
+def _fmt_ratio_pct(value) -> str:
+    """0.255 -> +25.5% (Yahoo reports growth and margins as fractions)."""
+    return f"{value * 100:+.1f}%" if isinstance(value, (int, float)) else "n/a"
+
+
+def _fmt_num(value, digits=2) -> str:
+    return f"{value:,.{digits}f}" if isinstance(value, (int, float)) else "n/a"
+
+
+@tool
+def get_company_profile(ticker: str) -> str:
+    """Company fundamentals: what it does, sector, market cap, valuation (P/E), growth, margins, 52-week range, and Wall Street analysts' consensus rating and price targets."""
+    symbol = market_data.normalize_ticker(ticker)
+    if symbol is None:
+        return f"No profile found for {ticker}: not a valid ticker symbol"
+    p = market_data.get_profile(symbol)
+    if p is None:
+        return f"No profile found for {symbol}"
+    rating = p["analyst_rating"] or "n/a"
+    return "\n".join([
+        f"{p['name']} ({symbol}): {p['sector'] or 'n/a'} / {p['industry'] or 'n/a'}",
+        f"Market cap {_fmt_big(p['market_cap'])}; employees {_fmt_num(p['employees'], 0)}",
+        f"P/E trailing {_fmt_num(p['trailing_pe'])}, forward {_fmt_num(p['forward_pe'])}; "
+        f"beta {_fmt_num(p['beta'])}; dividend yield "
+        + (f"{p['dividend_yield_pct']:.2f}%" if p["dividend_yield_pct"] is not None else "none"),
+        f"52-week range ${_fmt_num(p['week52_low'])} - ${_fmt_num(p['week52_high'])}",
+        f"Revenue (trailing 12 months) {_fmt_big(p['revenue'])}; revenue growth "
+        f"{_fmt_ratio_pct(p['revenue_growth'])} and earnings growth "
+        f"{_fmt_ratio_pct(p['earnings_growth'])} year over year; profit margin "
+        f"{_fmt_ratio_pct(p['profit_margin']).lstrip('+')}",
+        f"Analyst consensus (Yahoo, {_fmt_num(p['analyst_count'], 0)} analysts): {rating}; "
+        f"mean target ${_fmt_num(p['target_mean'])} (range ${_fmt_num(p['target_low'])} - "
+        f"${_fmt_num(p['target_high'])})",
+        f"Business (company description, third-party text): {p['summary'] or 'n/a'}",
+        _sources(yahoo_url(symbol, "company-profile"), yahoo_url(symbol, "statistics"),
+                 yahoo_url(symbol, "analysis")),
+    ])
+
+
+@tool
+def get_earnings(ticker: str) -> str:
+    """Earnings: the next report date with the EPS estimate, and the last four quarters' EPS vs. estimates (beats and misses)."""
+    symbol = market_data.normalize_ticker(ticker)
+    if symbol is None:
+        return f"No earnings found for {ticker}: not a valid ticker symbol"
+    e = market_data.get_earnings(symbol)
+    if e is None:
+        return f"No earnings data found for {symbol}"
+    lines = [f"{symbol} earnings (EPS = earnings per share):"]
+    if e["next"]:
+        lines.append(f"Next report: {e['next']['date']} (EPS estimate ${_fmt_num(e['next']['eps_estimate'])})")
+    else:
+        lines.append("Next report: not scheduled yet")
+    for q in e["recent"]:
+        outcome = ""
+        if q["surprise_pct"] is not None:
+            outcome = f", {'beat' if q['surprise_pct'] >= 0 else 'missed'} by {abs(q['surprise_pct']):.1f}%"
+        lines.append(
+            f"- Reported {q['date']}: EPS ${_fmt_num(q['eps_actual'])} vs estimate "
+            f"${_fmt_num(q['eps_estimate'])}{outcome}"
+        )
+    lines.append(_sources(f"{YAHOO}/calendar/earnings?symbol={quote(symbol, safe='')}",
+                          yahoo_url(symbol, "analysis")))
+    return "\n".join(lines)
+
+
+TOOLS = [
+    search_ticker, get_stock_price, get_price_history, get_market_overview, get_news,
+    get_company_profile, get_earnings,
+]
 
 
 if __name__ == "__main__":

@@ -185,3 +185,36 @@ def test_market_overview_shapes_indexes_and_movers(monkeypatch):
     assert o["indexes"] == [{"name": "S&P 500", "symbol": "^GSPC", "price": 7764.64, "change_pct": 0.25}]
     assert set(o["movers"]) == {"gainers", "losers", "most_active"}
     assert o["movers"]["gainers"][0]["name"] == "Co Inc"
+
+
+def test_earnings_splits_next_from_reported(monkeypatch):
+    nan = float("nan")
+    frame = pd.DataFrame(
+        {"EPS Estimate": [0.45, 0.54, 0.35, 0.50], "Reported EPS": [nan, 0.33, 0.41, nan],
+         "Surprise(%)": [nan, -39.15, 17.15, nan]},
+        index=pd.to_datetime(["2026-10-21", "2026-07-22", "2026-04-22", "2026-01-01"]).tz_localize("America/New_York"),
+    )
+
+    class Ticker:
+        def __init__(self, symbol):
+            pass
+
+        def get_earnings_dates(self, limit):
+            return frame
+
+    monkeypatch.setattr(market_data.yf, "Ticker", Ticker)
+    monkeypatch.setattr(market_data, "today", lambda: __import__("datetime").date(2026, 9, 22))
+    e = market_data.get_earnings("TSLA")
+    # A past date with no reported EPS is neither "next" nor a result.
+    assert e["next"]["date"] == "2026-10-21"
+    assert [q["date"] for q in e["recent"]] == ["2026-07-22", "2026-04-22"]
+    assert e["recent"][0]["surprise_pct"] == -39.15
+
+
+def test_profile_unknown_symbol_is_none(monkeypatch):
+    class Ticker:
+        def __init__(self, symbol):
+            self.info = {}
+
+    monkeypatch.setattr(market_data.yf, "Ticker", Ticker)
+    assert market_data.get_profile("ZZZQX") is None

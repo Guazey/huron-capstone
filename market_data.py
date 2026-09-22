@@ -138,9 +138,9 @@ MAX_HEADLINE_CHARS = 200
 _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]+")
 
 
-def _clean_text(text) -> str:
-    """Headlines are third-party text: flatten to one short line of plain text."""
-    return " ".join(_CONTROL_CHARS.sub(" ", str(text or "")).split())[:MAX_HEADLINE_CHARS]
+def _clean_text(text, limit: int = MAX_HEADLINE_CHARS) -> str:
+    """Third-party text: flatten to one short line of plain text."""
+    return " ".join(_CONTROL_CHARS.sub(" ", str(text or "")).split())[:limit]
 
 
 def _https_or_none(url) -> str | None:
@@ -244,6 +244,73 @@ def get_news(symbol: str | None = None, limit: int = 8) -> list[dict]:
         return headlines
 
     return _cached(("news", symbol), fetch)[:limit]
+
+
+MAX_SUMMARY_CHARS = 400
+PROFILE_FIELDS = {
+    "sector": "sector", "industry": "industry", "market_cap": "marketCap",
+    "employees": "fullTimeEmployees", "trailing_pe": "trailingPE", "forward_pe": "forwardPE",
+    "dividend_yield_pct": "dividendYield", "beta": "beta",
+    "week52_high": "fiftyTwoWeekHigh", "week52_low": "fiftyTwoWeekLow",
+    "revenue": "totalRevenue", "revenue_growth": "revenueGrowth",
+    "earnings_growth": "earningsGrowth", "profit_margin": "profitMargins",
+    "analyst_rating": "recommendationKey", "analyst_count": "numberOfAnalystOpinions",
+    "target_mean": "targetMeanPrice", "target_high": "targetHighPrice", "target_low": "targetLowPrice",
+}
+
+
+def _number_or_none(value):
+    """yfinance mixes None, NaN, and numbers; keep real numbers only."""
+    return value if isinstance(value, (int, float)) and value == value else None
+
+
+def get_profile(symbol: str) -> dict | None:
+    """Company profile, valuation, growth, and analyst consensus, or None if unknown."""
+    def fetch():
+        info = yf.Ticker(symbol).info or {}
+        name = info.get("longName") or info.get("shortName")
+        if not name:
+            return None
+        profile = {"symbol": symbol, "name": _clean_text(name)}
+        for key, field in PROFILE_FIELDS.items():
+            value = info.get(field)
+            profile[key] = _clean_text(value) if isinstance(value, str) else _number_or_none(value)
+        profile["summary"] = _clean_text(info.get("longBusinessSummary"), MAX_SUMMARY_CHARS)
+        return profile
+
+    return _cached(("profile", symbol), fetch)
+
+
+def today():
+    return datetime.now(timezone.utc).date()
+
+
+def get_earnings(symbol: str, quarters: int = 4) -> dict | None:
+    """Next earnings date with consensus, plus recent quarters' EPS vs estimate."""
+    def fetch():
+        t = yf.Ticker(symbol)
+        try:
+            dates = t.get_earnings_dates(limit=quarters + 4)
+        except Exception:  # noqa: BLE001 - yfinance raises assorted errors for no data
+            dates = None
+        if dates is None or dates.empty:
+            return None
+        upcoming, reported = None, []
+        for when, row in dates.sort_index().iterrows():
+            eps_actual = _number_or_none(row.get("Reported EPS"))
+            entry = {
+                "date": when.date().isoformat(),
+                "eps_estimate": _number_or_none(row.get("EPS Estimate")),
+                "eps_actual": eps_actual,
+                "surprise_pct": _number_or_none(row.get("Surprise(%)")),
+            }
+            if eps_actual is not None:
+                reported.append(entry)
+            elif when.date() >= today() and upcoming is None:
+                upcoming = entry  # earliest future date
+        return {"symbol": symbol, "next": upcoming, "recent": reported[-quarters:][::-1]}
+
+    return _cached(("earnings", symbol, quarters), fetch)
 
 
 if __name__ == "__main__":

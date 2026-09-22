@@ -7,6 +7,8 @@ MODEL_ID="${BEDROCK_MODEL_ID:-us.anthropic.claude-haiku-4-5-20251001-v1:0}"
 NAME="capstone-sidebar"            # ECR repo, IAM role, Cognito pool/client
 RUNTIME_NAME="capstone_sidebar"    # AgentCore runtime names allow no hyphens
 LOG_RETENTION_DAYS=14
+MEMORY_NAME="capstone_sidebar_memory"  # letters, digits, underscores only
+MEMORY_EXPIRY_DAYS=7                   # chats are kept a week, then deleted
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${NAME}"

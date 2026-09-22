@@ -1,3 +1,5 @@
+from langchain_core.messages import trim_messages
+
 from model import model_with_tools
 from prompts import prompt
 from state import AgentState
@@ -9,9 +11,26 @@ from tools import TOOLS as TOOL_LIST
 agent_chain = prompt | model_with_tools
 
 
+# A long chat would otherwise resend every earlier turn, tool results
+# included, on every call. Keep the most recent messages, cut at a user turn
+# so a tool call is never separated from its result.
+MAX_HISTORY_MESSAGES = 30
+
+
+def recent_history(messages):
+    return trim_messages(
+        messages,
+        max_tokens=MAX_HISTORY_MESSAGES,
+        token_counter=len,
+        strategy="last",
+        start_on="human",
+        include_system=False,
+    )
+
+
 def agent_node(state: AgentState):
-    """Call the model with the system prompt + whole conversation; add its reply to state."""
-    response = agent_chain.invoke({"messages": state["messages"]})
+    """Call the model with the system prompt + recent conversation; add its reply to state."""
+    response = agent_chain.invoke({"messages": recent_history(state["messages"])})
     return {"messages": [response]}
 
 

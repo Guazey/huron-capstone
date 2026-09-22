@@ -8,6 +8,8 @@ type Message = {
   role: "user" | "assistant";
   text: string;
   tools: string[];
+  /** URLs that appeared in tool results: the only links this answer may open. */
+  sources?: string[];
   requestId?: string;
   error?: string;
   streaming?: boolean;
@@ -16,7 +18,7 @@ type Message = {
 const EXAMPLES = [
   "What's the biggest news in the market today?",
   "How is NVDA doing today?",
-  "How has TSLA moved over the last 3 months?",
+  "How has TSLA moved over the last 3 months, and why?",
 ];
 
 const TOOL_LABELS: Record<string, string> = {
@@ -25,7 +27,11 @@ const TOOL_LABELS: Record<string, string> = {
   get_price_history: "price history",
   get_market_overview: "market movers",
   get_news: "news",
+  get_company_profile: "company profile",
+  get_earnings: "earnings",
 };
+
+const CHAT_KEY = "chat";
 
 type AuthState = { status: "loading" } | { status: "signedOut" } | { status: "signedIn"; email?: string };
 
@@ -44,6 +50,22 @@ export default function App() {
       setAuth(s ? { status: "signedIn", email: s.email } : { status: "signedOut" }),
     );
   }, []);
+
+  // Keep the chat (and its session ID, which is the agent's memory key) when
+  // the panel is closed and reopened. Cleared when Chrome closes.
+  useEffect(() => {
+    chrome.storage.session.get(CHAT_KEY).then((stored) => {
+      const chat = stored[CHAT_KEY] as { sessionId: string; messages: Message[] } | undefined;
+      if (chat) {
+        setSessionId(chat.sessionId);
+        setMessages(chat.messages.map((m) => ({ ...m, streaming: false })));
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!busy) void chrome.storage.session.set({ [CHAT_KEY]: { sessionId, messages } });
+  }, [messages, sessionId, busy]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -65,6 +87,7 @@ export default function App() {
 
   async function handleSignOut() {
     await signOut();
+    newChat();
     setAuth({ status: "signedOut" });
   }
 
@@ -100,6 +123,8 @@ export default function App() {
           // not the answer; drop it so only the final answer remains.
           else if (event.type === "tool")
             updateLast((m) => ({ ...m, text: "", tools: [...m.tools, event.name] }));
+          else if (event.type === "sources")
+            updateLast((m) => ({ ...m, sources: [...(m.sources ?? []), ...event.urls] }));
           else if (event.type === "done") updateLast((m) => ({ ...m, requestId: event.request_id }));
           else if (event.type === "error")
             updateLast((m) => ({ ...m, error: event.message, requestId: event.request_id }));
@@ -191,11 +216,14 @@ export default function App() {
       </form>
 
       <footer className="muted">
-        Information only, not financial advice. Quotes may be delayed. Each question
-        is answered on its own for now.
+        Information only, not financial advice. Quotes may be delayed.
       </footer>
     </main>
   );
+}
+
+export function isVerifiedLink(href: string | undefined, sources: string[] | undefined): boolean {
+  return !!href && href.startsWith("https://") && !!sources?.includes(href);
 }
 
 function AssistantMessage({ message: m }: { message: Message }) {
@@ -220,10 +248,10 @@ function AssistantMessage({ message: m }: { message: Message }) {
       {m.text && (
         <Markdown
           components={{
-            // Only real web links are clickable; anything else the model
-            // shaped like a link (a ticker, a relative path) renders as text.
+            // Only links to pages the tools actually returned are clickable.
+            // Anything else the model shaped like a link renders as text.
             a: ({ href, children }) =>
-              href?.startsWith("https://") ? (
+              isVerifiedLink(href, m.sources) ? (
                 <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
               ) : (
                 <span>{children}</span>
@@ -236,11 +264,6 @@ function AssistantMessage({ message: m }: { message: Message }) {
       {m.error && <p className="error" role="alert">{m.error}</p>}
       {!m.streaming && (m.text || m.error) && (
         <div className="meta">
-          {uniqueTools.length > 0 && (
-            <span className="chip" title={uniqueTools.join(", ")}>
-              Source: Yahoo Finance ({uniqueTools.map((t) => TOOL_LABELS[t] ?? t).join(", ")})
-            </span>
-          )}
           {m.text && (
             <button className="link" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
           )}

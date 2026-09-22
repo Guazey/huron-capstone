@@ -6,7 +6,8 @@
 # Usage: infra/deploy.sh            (Docker Desktop must be running)
 # Creates, in $REGION:
 #   ECR repo, IAM execution role, Cognito user pool + app client,
-#   AgentCore runtime (HTTP protocol, JWT authorizer), log retention policy.
+#   AgentCore Memory, AgentCore runtime (HTTP protocol, JWT authorizer),
+#   log retention policy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source infra/config.sh
@@ -61,6 +62,10 @@ POLICY=$(cat <<EOF
  {"Sid":"Traces","Effect":"Allow",
   "Action":["xray:PutTraceSegments","xray:PutTelemetryRecords","xray:GetSamplingRules","xray:GetSamplingTargets"],
   "Resource":"*"},
+ {"Sid":"ChatMemory","Effect":"Allow",
+  "Action":["bedrock-agentcore:CreateEvent","bedrock-agentcore:GetEvent",
+            "bedrock-agentcore:ListEvents","bedrock-agentcore:DeleteEvent"],
+  "Resource":"arn:aws:bedrock-agentcore:${REGION}:${ACCOUNT_ID}:memory/${MEMORY_NAME}-*"},
  {"Sid":"Metrics","Effect":"Allow","Action":"cloudwatch:PutMetricData","Resource":"*",
   "Condition":{"StringEquals":{"cloudwatch:namespace":"bedrock-agentcore"}}}]}
 EOF
@@ -101,6 +106,27 @@ if [[ "$CLIENT_ID" == "None" ]]; then
 fi
 DISCOVERY_URL="https://cognito-idp.${REGION}.amazonaws.com/${POOL_ID}/.well-known/openid-configuration"
 
+# ---------------------------------------------------------------- memory
+step "3b/6 AgentCore Memory (chat history, ${MEMORY_EXPIRY_DAYS}-day expiry)"
+# Short-term memory only (no strategies): raw conversation events per session.
+MEMORY_ID=$(aws bedrock-agentcore-control list-memories \
+  --query "memories[?starts_with(id, '${MEMORY_NAME}-')].id | [0]" --output text)
+if [[ "$MEMORY_ID" == "None" ]]; then
+  MEMORY_ID=$(aws bedrock-agentcore-control create-memory --name "$MEMORY_NAME" \
+    --event-expiry-duration "$MEMORY_EXPIRY_DAYS" \
+    --description "Market sidebar chat history" \
+    --query memory.id --output text)
+fi
+for _ in $(seq 1 30); do
+  MEMORY_STATUS=$(aws bedrock-agentcore-control get-memory --memory-id "$MEMORY_ID" \
+    --query memory.status --output text)
+  [[ "$MEMORY_STATUS" == "ACTIVE" ]] && break
+  [[ "$MEMORY_STATUS" == *FAILED* ]] && { echo "memory $MEMORY_STATUS"; exit 1; }
+  echo "  memory: $MEMORY_STATUS"; sleep 10
+done
+[[ "$MEMORY_STATUS" == "ACTIVE" ]] || { echo "timed out waiting for memory"; exit 1; }
+echo "  $MEMORY_ID"
+
 # ---------------------------------------------------------------- 4. runtime
 step "4/6 AgentCore runtime"
 # Cognito access tokens carry client_id (not aud), so authorize on allowedClients.
@@ -111,7 +137,9 @@ COMMON_ARGS=(
   --network-configuration '{"networkMode":"PUBLIC"}'
   --protocol-configuration '{"serverProtocol":"HTTP"}'
   --authorizer-configuration "$AUTHORIZER"
-  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\"}"
+  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\",\"MEMORY_ID\":\"${MEMORY_ID}\"}"
+  # Forward the (already verified) bearer token so app.py can key memory by user.
+  --request-header-configuration '{"requestHeaderAllowlist":["Authorization"]}'
 )
 RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --query "agentRuntimes[?agentRuntimeName=='${RUNTIME_NAME}'].agentRuntimeId | [0]" --output text)
@@ -151,6 +179,7 @@ RUNTIME_ARN=${RUNTIME_ARN}
 POOL_ID=${POOL_ID}
 CLIENT_ID=${CLIENT_ID}
 IMAGE=${IMAGE}
+MEMORY_ID=${MEMORY_ID}
 EOF
 printf '\nDeployed. Wrote %s.\nFirst time: infra/create_user.sh, then infra/invoke.sh "How is NVDA doing today?"\n' "$OUTPUTS"
 
