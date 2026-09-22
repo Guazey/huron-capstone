@@ -9,3 +9,6 @@ extension/node_modules/
 extension/dist/
 extension/.env.local
 *.code-workspace
+# rendered with account IDs by infra/render_policies.sh
+infra/deployer-policy.json
+infra/boundary-policy.json

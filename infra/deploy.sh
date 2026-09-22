@@ -31,7 +31,13 @@ IMAGE="${ECR_REPO}:${TAG}"
 echo "pushed $IMAGE"
 
 # ---------------------------------------------------------------- 2. IAM role
-step "2/6 IAM execution role (least privilege)"
+step "2/6 IAM execution role (least privilege, inside the permissions boundary)"
+if ! aws iam get-policy --policy-arn "$BOUNDARY_ARN" >/dev/null 2>&1; then
+  echo "Missing the permissions boundary ${BOUNDARY_ARN##*/}."
+  echo "Run infra/render_policies.sh, then as an admin create a customer managed policy"
+  echo "named ${BOUNDARY_ARN##*/} from infra/boundary-policy.json."
+  exit 1
+fi
 TRUST=$(cat <<EOF
 {"Version":"2012-10-17","Statement":[{
   "Effect":"Allow",
@@ -58,7 +64,7 @@ POLICY=$(cat <<EOF
    "arn:aws:bedrock:*::foundation-model/${FOUNDATION_MODEL}"]},
  {"Sid":"OwnLogs","Effect":"Allow",
   "Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams"],
-  "Resource":"arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:/aws/bedrock-agentcore/runtimes/*"},
+  "Resource":"arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:/aws/bedrock-agentcore/runtimes/${RUNTIME_NAME}-*"},
  {"Sid":"DescribeLogGroups","Effect":"Allow","Action":"logs:DescribeLogGroups","Resource":"*"},
  {"Sid":"Traces","Effect":"Allow",
   "Action":["xray:PutTraceSegments","xray:PutTelemetryRecords","xray:GetSamplingRules","xray:GetSamplingTargets"],
@@ -72,11 +78,13 @@ POLICY=$(cat <<EOF
 EOF
 )
 if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
-  aws iam create-role --role-name "$ROLE_NAME" \
+  aws iam create-role --role-name "$ROLE_NAME" --permissions-boundary "$BOUNDARY_ARN" \
     --assume-role-policy-document "$TRUST" >/dev/null
   echo "created role; waiting for IAM to propagate"
   sleep 10
 fi
+# Also covers roles created before the boundary existed.
+aws iam put-role-permissions-boundary --role-name "$ROLE_NAME" --permissions-boundary "$BOUNDARY_ARN"
 aws iam put-role-policy --role-name "$ROLE_NAME" \
   --policy-name "${NAME}-runtime" --policy-document "$POLICY"
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
@@ -96,13 +104,26 @@ CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
   --query "UserPoolClients[?ClientName=='${NAME}'].ClientId | [0]" --output text)
 if [[ "$CLIENT_ID" == "None" ]]; then
   # Public client (no secret): it will live in a browser extension.
-  # USER_PASSWORD_AUTH is for invoke.sh testing.
   CLIENT_ID=$(aws cognito-idp create-user-pool-client --user-pool-id "$POOL_ID" \
     --client-name "$NAME" --no-generate-secret \
-    --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+    --explicit-auth-flows ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
     --access-token-validity 60 --id-token-validity 60 --refresh-token-validity 7 \
     --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
     --prevent-user-existence-errors ENABLED \
+    --query UserPoolClient.ClientId --output text)
+fi
+# Terminal-only client for infra/invoke.sh: password login, but only with its
+# secret, and its ID never ships in the extension. The browser client above
+# has no direct password login.
+CLI_CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
+  --query "UserPoolClients[?ClientName=='${CLI_CLIENT_NAME}'].ClientId | [0]" --output text)
+if [[ "$CLI_CLIENT_ID" == "None" ]]; then
+  CLI_CLIENT_ID=$(aws cognito-idp create-user-pool-client --user-pool-id "$POOL_ID" \
+    --client-name "$CLI_CLIENT_NAME" --generate-secret \
+    --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+    --access-token-validity 60 --id-token-validity 60 --refresh-token-validity 1 \
+    --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
+    --prevent-user-existence-errors ENABLED --enable-token-revocation \
     --query UserPoolClient.ClientId --output text)
 fi
 DISCOVERY_URL="https://cognito-idp.${REGION}.amazonaws.com/${POOL_ID}/.well-known/openid-configuration"
@@ -155,9 +176,11 @@ KB_POLICY=$(cat <<JSON
 JSON
 )
 if ! aws iam get-role --role-name "$KB_ROLE_NAME" >/dev/null 2>&1; then
-  aws iam create-role --role-name "$KB_ROLE_NAME" --assume-role-policy-document "$KB_TRUST" >/dev/null
+  aws iam create-role --role-name "$KB_ROLE_NAME" --permissions-boundary "$BOUNDARY_ARN" \
+    --assume-role-policy-document "$KB_TRUST" >/dev/null
   echo "  created KB role; waiting for IAM to propagate"; sleep 10
 fi
+aws iam put-role-permissions-boundary --role-name "$KB_ROLE_NAME" --permissions-boundary "$BOUNDARY_ARN"
 aws iam put-role-policy --role-name "$KB_ROLE_NAME" --policy-name "${KB_ROLE_NAME}-s3-read" \
   --policy-document "$KB_POLICY"
 
@@ -214,7 +237,7 @@ aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name "${NAME}-kb-read"
 # ---------------------------------------------------------------- 4. runtime
 step "4/6 AgentCore runtime"
 # Cognito access tokens carry client_id (not aud), so authorize on allowedClients.
-AUTHORIZER="{\"customJWTAuthorizer\":{\"discoveryUrl\":\"${DISCOVERY_URL}\",\"allowedClients\":[\"${CLIENT_ID}\"]}}"
+AUTHORIZER="{\"customJWTAuthorizer\":{\"discoveryUrl\":\"${DISCOVERY_URL}\",\"allowedClients\":[\"${CLIENT_ID}\",\"${CLI_CLIENT_ID}\"]}}"
 COMMON_ARGS=(
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"${IMAGE}\"}}"
   --role-arn "$ROLE_ARN"
@@ -262,6 +285,7 @@ RUNTIME_ID=${RUNTIME_ID}
 RUNTIME_ARN=${RUNTIME_ARN}
 POOL_ID=${POOL_ID}
 CLIENT_ID=${CLIENT_ID}
+CLI_CLIENT_ID=${CLI_CLIENT_ID}
 IMAGE=${IMAGE}
 MEMORY_ID=${MEMORY_ID}
 KB_ID=${KB_ID}

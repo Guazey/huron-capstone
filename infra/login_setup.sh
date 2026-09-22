@@ -40,7 +40,7 @@ step "2/3 app client: code flow + PKCE back to the extension"
 # update-user-pool-client resets anything not passed, so restate every setting.
 aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$CLIENT_ID" \
   --client-name "$NAME" \
-  --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+  --explicit-auth-flows ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
   --access-token-validity 60 --id-token-validity 60 --refresh-token-validity 7 \
   --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
   --prevent-user-existence-errors ENABLED --enable-token-revocation \

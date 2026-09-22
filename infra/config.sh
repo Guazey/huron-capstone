@@ -17,6 +17,10 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 FILINGS_BUCKET="${NAME}-filings-$(printf '%s' "$ACCOUNT_ID" | shasum | cut -c1-8)"
 ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${NAME}"
 ROLE_NAME="${NAME}-runtime"
+# Ceiling on what the project roles can ever do; created once by an admin
+# (infra/render_policies.sh -> infra/boundary-policy.json).
+BOUNDARY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/${NAME}-boundary"
+CLI_CLIENT_NAME="${NAME}-cli"  # terminal-only login client (infra/invoke.sh)
 
 # Written by deploy.sh, read by invoke.sh and teardown.sh. Gitignored.
 OUTPUTS="$(dirname "${BASH_SOURCE[0]}")/outputs.env"

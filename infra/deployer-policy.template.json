@@ -1,0 +1,187 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrThisRepoOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository", "ecr:DescribeRepositories", "ecr:DeleteRepository",
+        "ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer", "ecr:ListImages", "ecr:DescribeImages"
+      ],
+      "Resource": "arn:aws:ecr:{{REGION}}:{{ACCOUNT_ID}}:repository/capstone-sidebar"
+    },
+    {
+      "Sid": "ProjectRolesOnlyWithBoundary",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:PutRolePermissionsBoundary"
+      ],
+      "Resource": [
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-runtime",
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-kb"
+      ],
+      "Condition": {"StringEquals": {"iam:PermissionsBoundary": "arn:aws:iam::{{ACCOUNT_ID}}:policy/capstone-sidebar-boundary"}}
+    },
+    {
+      "Sid": "ProjectRolesReadAndDelete",
+      "Effect": "Allow",
+      "Action": ["iam:GetRole", "iam:GetRolePolicy", "iam:DeleteRole"],
+      "Resource": [
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-runtime",
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-kb"
+      ]
+    },
+    {
+      "Sid": "SeeBoundary",
+      "Effect": "Allow",
+      "Action": "iam:GetPolicy",
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:policy/capstone-sidebar-boundary"
+    },
+    {
+      "Sid": "NeverLoosenTheBoundary",
+      "Effect": "Deny",
+      "Action": [
+        "iam:DeleteRolePermissionsBoundary", "iam:CreatePolicyVersion", "iam:DeletePolicy",
+        "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion"
+      ],
+      "Resource": [
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-runtime",
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-kb",
+        "arn:aws:iam::{{ACCOUNT_ID}}:policy/capstone-sidebar-boundary"
+      ]
+    },
+    {
+      "Sid": "PassRuntimeRoleToAgentCoreOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-runtime",
+      "Condition": {"StringEquals": {"iam:PassedToService": "bedrock-agentcore.amazonaws.com"}}
+    },
+    {
+      "Sid": "PassKbRoleToBedrockOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-kb",
+      "Condition": {"StringEquals": {"iam:PassedToService": "bedrock.amazonaws.com"}}
+    },
+    {
+      "Sid": "AgentCoreServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": {"StringLike": {"iam:AWSServiceName": "*bedrock-agentcore.amazonaws.com"}}
+    },
+    {
+      "Sid": "CognitoCreateAndFind",
+      "Effect": "Allow",
+      "Action": ["cognito-idp:CreateUserPool", "cognito-idp:ListUserPools"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CognitoThisPoolOnly",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:DescribeUserPool", "cognito-idp:DeleteUserPool",
+        "cognito-idp:ListUserPoolClients", "cognito-idp:CreateUserPoolClient",
+        "cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient",
+        "cognito-idp:CreateUserPoolDomain", "cognito-idp:DeleteUserPoolDomain",
+        "cognito-idp:ListUsers", "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword"
+      ],
+      "Resource": "arn:aws:cognito-idp:{{REGION}}:{{ACCOUNT_ID}}:userpool/{{POOL_ID}}"
+    },
+    {
+      "Sid": "AgentCoreCreateAndList",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:CreateAgentRuntime", "bedrock-agentcore:ListAgentRuntimes",
+        "bedrock-agentcore:CreateMemory", "bedrock-agentcore:ListMemories"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "{{REGION}}"}}
+    },
+    {
+      "Sid": "AgentCoreThisRuntime",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:GetAgentRuntime", "bedrock-agentcore:UpdateAgentRuntime",
+        "bedrock-agentcore:DeleteAgentRuntime", "bedrock-agentcore:ListAgentRuntimeVersions",
+        "bedrock-agentcore:ListAgentRuntimeEndpoints", "bedrock-agentcore:GetAgentRuntimeEndpoint"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:{{REGION}}:{{ACCOUNT_ID}}:runtime/capstone_sidebar-*"
+    },
+    {
+      "Sid": "AgentCoreImplicitOnCreate",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:CreateAgentRuntimeEndpoint", "bedrock-agentcore:UpdateAgentRuntimeEndpoint",
+        "bedrock-agentcore:DeleteAgentRuntimeEndpoint"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:{{REGION}}:{{ACCOUNT_ID}}:runtime/*"
+    },
+    {
+      "Sid": "AgentCoreWorkloadIdentity",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:*WorkloadIdentit*",
+      "Resource": "arn:aws:bedrock-agentcore:{{REGION}}:{{ACCOUNT_ID}}:workload-identity-directory/*"
+    },
+    {
+      "Sid": "AgentCoreThisMemory",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:GetMemory", "bedrock-agentcore:UpdateMemory", "bedrock-agentcore:DeleteMemory"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:{{REGION}}:{{ACCOUNT_ID}}:memory/capstone_sidebar_memory-*"
+    },
+    {
+      "Sid": "LogsFind",
+      "Effect": "Allow",
+      "Action": "logs:DescribeLogGroups",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsThisRuntimeOnly",
+      "Effect": "Allow",
+      "Action": [
+        "logs:PutRetentionPolicy", "logs:DeleteLogGroup",
+        "logs:FilterLogEvents", "logs:GetLogEvents", "logs:DescribeLogStreams",
+        "logs:StartLiveTail", "logs:StartQuery", "logs:GetQueryResults"
+      ],
+      "Resource": "arn:aws:logs:{{REGION}}:{{ACCOUNT_ID}}:log-group:/aws/bedrock-agentcore/runtimes/capstone_sidebar-*"
+    },
+    {
+      "Sid": "FilingsBucketOnly",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket", "s3:GetBucketLocation",
+        "s3:PutBucketPublicAccessBlock", "s3:GetBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration", "s3:GetEncryptionConfiguration",
+        "s3:GetObject", "s3:PutObject", "s3:DeleteObject"
+      ],
+      "Resource": ["arn:aws:s3:::capstone-sidebar-filings-*", "arn:aws:s3:::capstone-sidebar-filings-*/*"]
+    },
+    {
+      "Sid": "KnowledgeBaseCreateAndList",
+      "Effect": "Allow",
+      "Action": ["bedrock:CreateKnowledgeBase", "bedrock:ListKnowledgeBases"],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "{{REGION}}"}}
+    },
+    {
+      "Sid": "KnowledgeBaseThisOneOnly",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:GetKnowledgeBase", "bedrock:UpdateKnowledgeBase", "bedrock:DeleteKnowledgeBase",
+        "bedrock:*DataSource*", "bedrock:*IngestionJob*", "bedrock:Retrieve"
+      ],
+      "Resource": "arn:aws:bedrock:{{REGION}}:{{ACCOUNT_ID}}:knowledge-base/{{KB_ID}}"
+    }
+  ]
+}

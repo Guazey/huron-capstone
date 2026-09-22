@@ -13,10 +13,19 @@ PROMPT="${1:?usage: infra/invoke.sh \"question\"}"
 
 read -rp "Sidebar login email: " USER_EMAIL
 read -rsp "Password: " USER_PASSWORD; echo
-# JSON, not shorthand, so a password containing "," or "=" still works.
-AUTH_PARAMS=$(USER_EMAIL="$USER_EMAIL" USER_PASSWORD="$USER_PASSWORD" python3 -c \
-  'import json, os; print(json.dumps({"USERNAME": os.environ["USER_EMAIL"], "PASSWORD": os.environ["USER_PASSWORD"]}))')
-TOKEN=$(aws cognito-idp initiate-auth --client-id "$CLIENT_ID" \
+# The terminal-only client requires its secret (read from AWS, never stored)
+# as a SECRET_HASH. JSON, not shorthand, so any password characters work.
+CLI_SECRET=$(aws cognito-idp describe-user-pool-client --user-pool-id "$POOL_ID" \
+  --client-id "$CLI_CLIENT_ID" --query UserPoolClient.ClientSecret --output text)
+AUTH_PARAMS=$(USER_EMAIL="$USER_EMAIL" USER_PASSWORD="$USER_PASSWORD" CLI_SECRET="$CLI_SECRET" \
+  CLI_CLIENT_ID="$CLI_CLIENT_ID" python3 -c '
+import base64, hashlib, hmac, json, os
+e = os.environ
+digest = hmac.new(e["CLI_SECRET"].encode(), (e["USER_EMAIL"] + e["CLI_CLIENT_ID"]).encode(), hashlib.sha256).digest()
+print(json.dumps({"USERNAME": e["USER_EMAIL"], "PASSWORD": e["USER_PASSWORD"],
+                  "SECRET_HASH": base64.b64encode(digest).decode()}))')
+unset CLI_SECRET
+TOKEN=$(aws cognito-idp initiate-auth --client-id "$CLI_CLIENT_ID" \
   --auth-flow USER_PASSWORD_AUTH --auth-parameters "$AUTH_PARAMS" \
   --query AuthenticationResult.AccessToken --output text)
 unset USER_PASSWORD AUTH_PARAMS
