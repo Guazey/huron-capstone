@@ -42,6 +42,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
 | ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |
 | Side panel extension | `extension/`, `infra/login_setup.sh` | done (slice 4): built; Cognito hosted login + PKCE |
+| SEC filings RAG: `sec_edgar.py` → S3 → Bedrock Managed Knowledge Base; `search_sec_filings` tool | `sec_edgar.py`, `knowledge.py`, `infra/deploy.sh` | done ([ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md)) |
 | Multi-turn memory (AgentCore Memory, keyed by session + Cognito user) | `app.py`, `graph.py`, `infra/deploy.sh` | done; page ticker detection still to do |
 
 ## Request flow
@@ -62,6 +63,8 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 
 - [ADR-0001](decisions/0001-agentcore-runtime-hosting.md): LangGraph hosted on AgentCore Runtime, called directly from the extension with a Cognito JWT
 - [ADR-0002](decisions/0002-yfinance-market-data.md): yfinance for market data, behind `market_data.py`
+- [ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md): SEC filings RAG with a Bedrock Managed Knowledge Base
+- Diagram: [`architecture.excalidraw`](architecture.excalidraw) (open at excalidraw.com)
 
 ## Security and data
 

@@ -36,6 +36,8 @@ Each file does one job and can be run on its own to see that job in isolation.
 
 | File | What it is |
 | --- | --- |
+| `sec_edgar.py` | Loads recent SEC filings (10-K, 10-Q) for a watchlist into S3 and runs Knowledge Base ingestion. Needs `SEC_USER_AGENT` in `.env`. |
+| `knowledge.py` | Searches the SEC filings Knowledge Base (the RAG part). |
 | `market_data.py` | The only file that talks to the market data provider (yfinance): ticker validation, 60s cache, timeouts. |
 | `tools.py` | The tools the model can ask for: `get_stock_price` and `get_price_history`, both live via `market_data.py`. |
 | `prompts.py` | The instructions the model sees on every turn, plus a slot for the conversation so far. |
