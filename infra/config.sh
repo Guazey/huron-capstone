@@ -11,10 +11,10 @@ MEMORY_NAME="capstone_sidebar_memory"  # letters, digits, underscores only
 MEMORY_EXPIRY_DAYS=7                   # chats are kept a week, then deleted
 KB_NAME="${NAME}-sec-filings"
 KB_ROLE_NAME="${NAME}-kb"
-# Bucket names are global; a hash of the account keeps it unique and private.
-FILINGS_BUCKET="${NAME}-filings-$(printf '%s' "$ACCOUNT_ID" | shasum | cut -c1-8)"
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+# Bucket names are global; a hash of the account keeps it unique and private.
+FILINGS_BUCKET="${NAME}-filings-$(printf '%s' "$ACCOUNT_ID" | shasum | cut -c1-8)"
 ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${NAME}"
 ROLE_NAME="${NAME}-runtime"
 
