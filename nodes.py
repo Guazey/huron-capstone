@@ -18,6 +18,16 @@ def agent_node(state: AgentState):
 TOOLS = {get_stock_price.name: get_stock_price}
 
 
+def _error_result(call, message):
+    """A tool result that reports a failure instead of a price."""
+    return {
+        "role": "tool",
+        "content": message,
+        "tool_call_id": call["id"],
+        "status": "error",
+    }
+
+
 def tools_node(state: AgentState):
     """Run every tool the last message asked for; add the results to state.
 
@@ -31,14 +41,7 @@ def tools_node(state: AgentState):
     for call in last_message.tool_calls:
         tool = TOOLS.get(call["name"])
         if tool is None:
-            results.append(
-                {
-                    "role": "tool",
-                    "content": f"Unknown tool: {call['name']}",
-                    "tool_call_id": call["id"],
-                    "status": "error",
-                }
-            )
+            results.append(_error_result(call, f"Unknown tool: {call['name']}"))
             continue
         try:
             content = tool.invoke(call["args"])
@@ -46,14 +49,7 @@ def tools_node(state: AgentState):
                 {"role": "tool", "content": content, "tool_call_id": call["id"]}
             )
         except Exception as e:  # noqa: BLE001 - any tool failure must become a result
-            results.append(
-                {
-                    "role": "tool",
-                    "content": f"Tool {call['name']} failed: {e}",
-                    "tool_call_id": call["id"],
-                    "status": "error",
-                }
-            )
+            results.append(_error_result(call, f"Tool {call['name']} failed: {e}"))
     return {"messages": results}
 
 
