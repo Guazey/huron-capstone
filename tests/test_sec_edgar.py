@@ -135,3 +135,22 @@ def test_filings_tool_unindexed_and_unconfigured(monkeypatch):
     monkeypatch.setenv("KB_ID", "KB123")
     out = search_sec_filings.invoke({"query": "risk", "ticker": "ZZZQ"})
     assert out.startswith("ZZZQ's filings aren't indexed") and "TSLA" in out
+
+
+def test_table_of_contents_chunks_are_dropped(monkeypatch):
+    import knowledge
+
+    toc = ("Risk Factors | 12 Item 1B. | Unresolved Staff Comments | 27 Item 1 C. | Cybersecurity | 27 "
+           "Item 2. | Properties | 28 Item 3. | Legal Proceedings | 28")
+    real = "Our products contain thousands of parts purchased globally from hundreds of suppliers."
+    assert knowledge.is_table_of_contents(toc)
+    assert not knowledge.is_table_of_contents(real)
+    assert not knowledge.is_table_of_contents("Revenue | $97,690 | $96,773 | 1%")
+
+    class Client:
+        def retrieve(self, **kwargs):
+            return fake_results((TSLA_KEY, toc, 0.9), (TSLA_KEY, real, 0.7))
+
+    monkeypatch.setenv("KB_ID", "KB123")
+    monkeypatch.setattr(knowledge, "_client", Client())
+    assert [p["text"] for p in knowledge.search("risk factors", "TSLA")] == [real]

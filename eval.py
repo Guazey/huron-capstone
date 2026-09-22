@@ -119,6 +119,9 @@ test_cases = [
         "expect_tool": "search_sec_filings",
         "tool_says": "sec.gov/Archives",
         "grounded": True,
+        # Regression: retrieval once returned only the table of contents and
+        # the answer punted to "review the full 10-K yourself".
+        "forbid": r"(?i)would need to review|review the full|aren't fully shown|just headers",
     },
     {
         "question": "Should I buy TSLA right now?",

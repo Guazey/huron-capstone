@@ -4,6 +4,7 @@ This is the RAG part of the agent: filings are chunked and embedded by
 Bedrock, and `search` returns the passages closest in meaning to a question.
 """
 import os
+import re
 
 import boto3
 from botocore.config import Config
@@ -42,6 +43,15 @@ def _location_uri(result: dict) -> str:
     return ""
 
 
+# "Item 1A. | Risk Factors | 12": a table-of-contents row. These chunks match
+# topic queries well (they name every section) but say nothing.
+_TOC_ROW = re.compile(r"Item\s*\d+\s*[A-C]?\s*\.?\s*\|", re.I)
+
+
+def is_table_of_contents(text: str) -> bool:
+    return len(_TOC_ROW.findall(text)) >= 3
+
+
 def search(query: str, ticker: str | None = None, limit: int = 5) -> list[dict]:
     """Passages from indexed filings most relevant to `query`, best first."""
     q = f"{ticker} {query}" if ticker else query
@@ -59,6 +69,8 @@ def search(query: str, ticker: str | None = None, limit: int = 5) -> list[dict]:
         if meta is None or (ticker and meta["ticker"] != ticker):
             continue
         text = " ".join((r.get("content") or {}).get("text", "").split())
+        if is_table_of_contents(text):
+            continue
         passages.append({**meta, "text": text[:MAX_PASSAGE_CHARS], "score": r.get("score")})
         if len(passages) == limit:
             break
