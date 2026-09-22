@@ -17,6 +17,9 @@ import re
 from graph import app
 
 DOLLARS = re.compile(r"\$\s?([\d,]+(?:\.\d+)?)")
+# Checked on every case: side notes are where the model slips in unsupported
+# background from memory ("Note: SpaceX remains largely private...").
+SIDE_NOTE = re.compile(r"(?im)^\W*(note|disclaimer|caveat)\W*:")
 
 test_cases = [
     {
@@ -41,7 +44,9 @@ test_cases = [
         "expect_tool": "search_ticker",
         "tool_says": "SPCX",
         "grounded": True,
-        "forbid": r"(?i)private(ly held)? company|not publicly traded",
+        # Also forbid the unsupported "Note: SpaceX remains largely private"
+        # commentary the model added from memory after the first fix.
+        "forbid": r"(?i)private|not publicly traded|\bnote:",
     },
     {
         "question": "What is Rocket Lab trading at?",
@@ -76,6 +81,8 @@ def check(case, messages):
         invented = _amounts(final_answer) - _amounts(tool_outputs)
         if invented:
             return False, f"answer states amounts no tool returned: {sorted(invented)}"
+    if SIDE_NOTE.search(final_answer):
+        return False, "answer adds a side note (unsupported commentary)"
     if "forbid" in case and re.search(case["forbid"], final_answer):
         return False, f"final answer matched forbidden pattern {case['forbid']!r}"
     return True, ""
