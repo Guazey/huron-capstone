@@ -44,6 +44,7 @@ Each file does one job and can be run on its own to see that job in isolation.
 | `nodes.py` | The two steps that do the work: one calls the model, one runs whatever tool the model asked for. |
 | `graph.py` | Wires the two steps together, including the decision that either loops back or stops. |
 | `main.py` | Runs the whole thing on a question and prints every message. |
+| `app.py` | The AgentCore Runtime entry point: the same graph served over HTTP (`/invocations`, `/ping`), streaming the answer as Server-Sent Events with one structured log line per request. |
 | `eval.py` | Four live checks (right tool called, every $ amount grounded in a tool result, unknown ticker, no buy/sell advice). Rerun after any change to the prompt, model, tools, or graph. |
 | `tests/` | Unit tests for the parts that don't need a model or the network: market data (yfinance stubbed), the tools, and the tool-result step. Run free in CI. |
 | `docs/` | [`architecture.md`](docs/architecture.md) for the sidebar + AgentCore plan, and [`decisions/`](docs/decisions/) for ADRs. |
@@ -58,6 +59,7 @@ cp .env.example .env   # then set the region and model ID
 python main.py "What's the price of AAPL?"
 pytest                 # unit tests for the deterministic code, no AWS needed
 python eval.py         # should print 4/4 passed; calls Bedrock and Yahoo
+python app.py          # serves the agent on localhost:8080 the way AgentCore will; see the curl example at the top of app.py
 ```
 
 The model is a single string in `.env`. Swapping Haiku for Sonnet, or any
