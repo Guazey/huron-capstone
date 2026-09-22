@@ -46,7 +46,7 @@ if [[ "$KB_ID" != "None" ]]; then
   done
   aws bedrock-agent delete-knowledge-base --knowledge-base-id "$KB_ID" >/dev/null && echo "deleted knowledge base"
 fi
-if aws s3api head-bucket --bucket "$FILINGS_BUCKET" 2>/dev/null; then
+if aws s3api head-bucket --bucket "$FILINGS_BUCKET" >/dev/null 2>&1; then
   aws s3 rm "s3://${FILINGS_BUCKET}" --recursive --quiet
   aws s3api delete-bucket --bucket "$FILINGS_BUCKET" && echo "deleted filings bucket"
 fi

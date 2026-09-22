@@ -151,7 +151,7 @@ echo "  $MEMORY_ID"
 
 # ---------------------------------------------------------------- knowledge base
 step "3c/6 SEC filings: S3 bucket + Bedrock Managed Knowledge Base"
-if ! aws s3api head-bucket --bucket "$FILINGS_BUCKET" 2>/dev/null; then
+if ! aws s3api head-bucket --bucket "$FILINGS_BUCKET" >/dev/null 2>&1; then
   aws s3api create-bucket --bucket "$FILINGS_BUCKET" \
     --create-bucket-configuration "LocationConstraint=${REGION}" >/dev/null
 fi
