@@ -2,7 +2,7 @@
 import pytest
 
 import market_data
-from tools import get_price_history, get_stock_price
+from tools import TOOLS, get_price_history, get_stock_price, search_ticker
 
 
 @pytest.fixture
@@ -62,3 +62,22 @@ def test_schemas_the_model_sees():
     assert get_stock_price.name == "get_stock_price"
     assert "ticker" in get_stock_price.args
     assert get_price_history.args["period"]["enum"] == list(market_data.PERIODS)
+
+
+def test_search_ticker_lists_matches(monkeypatch):
+    monkeypatch.setattr(market_data, "search", lambda q: [
+        {"symbol": "SPCX", "name": "Space Exploration Technologies", "type": "Equity", "exchange": "NASDAQ"},
+    ])
+    assert search_ticker.invoke({"query": "SpaceX"}) == (
+        "Listed securities matching 'SpaceX', most relevant first:\n"
+        "- SPCX: Space Exploration Technologies (Equity, NASDAQ)"
+    )
+
+
+def test_search_ticker_nothing_found(monkeypatch):
+    monkeypatch.setattr(market_data, "search", lambda q: [])
+    assert search_ticker.invoke({"query": "Acme Rockets"}) == "No listed securities found for 'Acme Rockets'"
+
+
+def test_every_tool_is_bound():
+    assert [t.name for t in TOOLS] == ["search_ticker", "get_stock_price", "get_price_history"]

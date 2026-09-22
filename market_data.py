@@ -96,9 +96,46 @@ def get_history(symbol: str, period: str) -> dict | None:
     return _cached(("history", symbol, period), fetch)
 
 
+# Search result types worth showing. Futures, options, and tokenized crypto
+# copies of stocks match company names too, but aren't what people mean.
+SEARCH_TYPES = {"EQUITY", "ETF", "INDEX", "MUTUALFUND"}
+MAX_QUERY_CHARS = 60
+
+
+def search(query: str, limit: int = 5) -> list[dict]:
+    """Listed securities matching a company or fund name, most relevant first.
+
+    This is how the agent learns tickers: its own knowledge of which companies
+    are public, and under what symbol, stops at its training date.
+    """
+    q = " ".join(query.split())[:MAX_QUERY_CHARS]
+    if not q:
+        return []
+
+    def fetch():
+        found = yf.Search(
+            q, max_results=10, news_count=0, lists_count=0,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        ).quotes
+        matches = []
+        for item in found:
+            if item.get("quoteType") not in SEARCH_TYPES or not item.get("symbol"):
+                continue
+            matches.append({
+                "symbol": item["symbol"],
+                "name": (item.get("longname") or item.get("shortname") or "").strip(),
+                "type": item.get("typeDisp") or item["quoteType"],
+                "exchange": item.get("exchDisp") or item.get("exchange") or "",
+            })
+        return matches
+
+    return _cached(("search", q.lower()), fetch)[:limit]
+
+
 if __name__ == "__main__":
     # Live check against Yahoo: needs internet, no AWS.
     print(get_quote("AAPL"))
     print(get_quote("ZZZQX"))
     print(get_history("NVDA", "1mo"))
+    print(search("SpaceX"))
     print(normalize_ticker(" brk-b "), normalize_ticker("DROP TABLE"))

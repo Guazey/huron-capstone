@@ -46,7 +46,23 @@ def get_price_history(
     )
 
 
-TOOLS = [get_stock_price, get_price_history]
+@tool
+def search_ticker(query: str) -> str:
+    """Find the ticker for a company, fund, or index by name (e.g. "SpaceX", "Rocket Lab", "S&P 500").
+
+    Use this whenever the user names a company instead of a ticker, or to check
+    whether a company is publicly traded at all.
+    """
+    matches = market_data.search(query)
+    if not matches:
+        return f"No listed securities found for {query!r}"
+    lines = [f"Listed securities matching {query!r}, most relevant first:"]
+    for m in matches:
+        lines.append(f"- {m['symbol']}: {m['name']} ({m['type']}, {m['exchange']})")
+    return "\n".join(lines)
+
+
+TOOLS = [search_ticker, get_stock_price, get_price_history]
 
 
 if __name__ == "__main__":

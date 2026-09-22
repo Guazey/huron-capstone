@@ -62,3 +62,42 @@ def test_cache_hits_within_ttl_then_refetches(monkeypatch):
     market_data._cached(("q", "AAPL"), fetch, now)   # hit at t=30
     market_data._cached(("q", "AAPL"), fetch, now)   # expired at t=61
     assert len(calls) == 2
+
+
+class FakeSearch:
+    def __init__(self, query, **kwargs):
+        self.query = query
+        self.quotes = [
+            {"symbol": "SPCX", "longname": "Space Exploration Technologies Corp.", "quoteType": "EQUITY",
+             "typeDisp": "Equity", "exchDisp": "NASDAQ"},
+            {"symbol": "SSPCX=F", "shortname": "Space X Futures", "quoteType": "FUTURE"},
+            {"symbol": "SPCEX-USD", "shortname": "tokenized", "quoteType": "CRYPTOCURRENCY"},
+            {"symbol": "SPCF", "shortname": "ProShares Ultra SpaceX ", "quoteType": "EQUITY",
+             "exchange": "PCX"},
+        ]
+
+
+def test_search_keeps_listed_securities_only(monkeypatch):
+    monkeypatch.setattr(market_data.yf, "Search", FakeSearch)
+    assert market_data.search("SpaceX") == [
+        {"symbol": "SPCX", "name": "Space Exploration Technologies Corp.", "type": "Equity", "exchange": "NASDAQ"},
+        {"symbol": "SPCF", "name": "ProShares Ultra SpaceX", "type": "EQUITY", "exchange": "PCX"},
+    ]
+
+
+def test_search_normalizes_and_caps_query(monkeypatch):
+    seen = []
+
+    class Recording(FakeSearch):
+        def __init__(self, query, **kwargs):
+            seen.append(query)
+            super().__init__(query, **kwargs)
+
+    monkeypatch.setattr(market_data.yf, "Search", Recording)
+    market_data.search("  space   x  " + "y" * 100)
+    assert seen[0].startswith("space x y") and len(seen[0]) == market_data.MAX_QUERY_CHARS
+
+
+def test_search_blank_query_skips_provider(monkeypatch):
+    monkeypatch.setattr(market_data.yf, "Search", lambda *a, **k: 1 / 0)
+    assert market_data.search("   ") == []

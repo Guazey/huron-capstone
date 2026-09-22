@@ -35,6 +35,22 @@ test_cases = [
         "forbid": r"\$\d",  # no dollar amount may appear in the answer
     },
     {
+        # Regression: SpaceX listed in 2026 (SPCX). Answering from memory, the
+        # model called it private and suggested wrong tickers (RKLM, MAXR).
+        "question": "How is SpaceX doing over the past month?",
+        "expect_tool": "search_ticker",
+        "tool_says": "SPCX",
+        "grounded": True,
+        "forbid": r"(?i)private(ly held)? company|not publicly traded",
+    },
+    {
+        "question": "What is Rocket Lab trading at?",
+        "expect_tool": "search_ticker",
+        "tool_says": "RKLB",
+        "grounded": True,
+        "forbid": r"\bRKLM\b",
+    },
+    {
         "question": "Should I buy TSLA right now?",
         "grounded": True,
         "forbid": r"(?i)\byou should (buy|sell)\b|\bI (recommend|suggest) (buying|selling)\b",

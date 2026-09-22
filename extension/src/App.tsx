@@ -20,6 +20,7 @@ const EXAMPLES = [
 ];
 
 const TOOL_LABELS: Record<string, string> = {
+  search_ticker: "ticker",
   get_stock_price: "latest price",
   get_price_history: "price history",
 };
@@ -93,8 +94,10 @@ export default function App() {
         token,
         (event) => {
           if (event.type === "text") updateLast((m) => ({ ...m, text: m.text + event.text }));
+          // Text before a tool call is the model narrating ("let me check"),
+          // not the answer; drop it so only the final answer remains.
           else if (event.type === "tool")
-            updateLast((m) => ({ ...m, tools: [...m.tools, event.name] }));
+            updateLast((m) => ({ ...m, text: "", tools: [...m.tools, event.name] }));
           else if (event.type === "done") updateLast((m) => ({ ...m, requestId: event.request_id }));
           else if (event.type === "error")
             updateLast((m) => ({ ...m, error: event.message, requestId: event.request_id }));
