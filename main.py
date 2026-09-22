@@ -1,14 +1,16 @@
-import os
+"""Entry point: run the agent once and print the full message trace.
 
-from dotenv import load_dotenv
-from langchain_aws import ChatBedrockConverse
+Usage:
+    python main.py                       # asks the default question
+    python main.py "Compare AAPL and NVDA"
+"""
+import sys
 
-load_dotenv()
+from graph import app
 
-model = ChatBedrockConverse(
-    model=os.environ["BEDROCK_MODEL_ID"],
-    region_name=os.environ["AWS_REGION"],
-)
+question = " ".join(sys.argv[1:]) or "What's the price of AAPL?"
 
-response = model.invoke("Explain what you do in one sentence.")
-print(response.content)
+result = app.invoke({"messages": [("user", question)]})
+
+for m in result["messages"]:
+    print(f"{m.type}: {m.content}")
