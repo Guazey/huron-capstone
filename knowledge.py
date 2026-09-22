@@ -34,13 +34,8 @@ def configured() -> bool:
 
 
 def _location_uri(result: dict) -> str:
-    loc = result.get("location") or {}
-    for key in ("s3Location", "customDocumentLocation", "webLocation"):
-        value = loc.get(key) or {}
-        uri = value.get("uri") or value.get("url") or value.get("id")
-        if uri:
-            return uri
-    return ""
+    s3 = (result.get("location") or {}).get("s3Location") or {}
+    return s3.get("uri") or ""
 
 
 # "Item 1A. | Risk Factors | 12": a table-of-contents row. These chunks match

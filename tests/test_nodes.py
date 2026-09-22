@@ -52,7 +52,7 @@ def test_raising_tool_returns_error_result(monkeypatch):
         def invoke(self, args):
             raise RuntimeError("upstream down")
 
-    monkeypatch.setitem(nodes.TOOLS, "get_stock_price", Boom())
+    monkeypatch.setitem(nodes.TOOLS_BY_NAME, "get_stock_price", Boom())
     state = {"messages": [ai_with_calls(("get_stock_price", {"ticker": "AAPL"}))]}
     out = tools_node(state)["messages"]
     assert out[0]["status"] == "error"

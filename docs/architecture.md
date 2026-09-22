@@ -9,7 +9,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 ```
 ┌──────────────────────────┐
 │ Chrome side panel (MV3)  │  React + Vite
-│  chat UI, streams tokens │  reads the ticker off the current page
+│  chat UI, streams tokens │  only opens links the tools returned
 │  login via Cognito       │  holds a login token, never AWS keys
 └────────────┬─────────────┘
              │ POST /runtimes/{arn}/invocations
@@ -19,7 +19,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 ┌──────────────────────────────────────────────────────────┐
 │ AgentCore Runtime (serverless, ARM64 container, HTTP)     │
 │   inbound auth: JWT authorizer -> Cognito user pool       │
-│   execution role: bedrock:InvokeModel* on one model only  │
+│   execution role: one model, this memory, this KB, logs   │
 │  ┌────────────────────────────────────────────┐           │
 │  │ app.py  (BedrockAgentCoreApp entrypoint)    │           │
 │  │   -> graph.py (LangGraph, unchanged)        │           │
@@ -37,7 +37,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Piece | File(s) | Status |
 |---|---|---|
 | Market data layer: the only code that knows yfinance; validates tickers, 60s cache, 10s timeout | `market_data.py` | done (slice 1) |
-| Tools: `search_ticker`, `get_stock_price`, `get_price_history`, `get_market_overview`, `get_news` | `tools.py` | done |
+| 8 tools: `search_ticker`, `get_stock_price`, `get_price_history`, `get_company_profile`, `get_earnings`, `get_news`, `get_market_overview`, `search_sec_filings` | `tools.py` | done |
 | Agent graph, nodes, prompt, model | `graph.py`, `nodes.py`, `prompts.py`, `model.py` | done; prompt updated for sidebar use |
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
 | ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |
@@ -70,8 +70,17 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 
 - **No AWS credentials on the client.** The only secret the extension holds
   is a short-lived Cognito token.
-- **The execution role** can invoke one Bedrock model and write its own log
-  group. Nothing else.
+- **The execution role** can invoke one Bedrock model, read and write
+  events in its own AgentCore Memory, `Retrieve` from its one Knowledge Base,
+  pull its own image, and write logs, traces, and metrics. Nothing else. The
+  Knowledge Base's role can only read the filings bucket.
+- **Injected text can't act.** Headlines, company descriptions, and filing
+  passages are third-party text: they're labeled as data, stripped of `<>` so
+  they can't forge a source link, and the panel renders no images and opens
+  only links the tools returned. A strict extension CSP backs this up.
+- **Memory is per user.** It's keyed by session ID and the Cognito user ID
+  from the verified token; a deployed request without a readable user is
+  refused rather than pooled.
 - **Tool arguments come from the model and are untrusted.** Tickers are
   checked against a regex before any network call, and `period` is an enum.
 - **Logs:** Runtime logs request and response payloads to CloudWatch, and

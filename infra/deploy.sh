@@ -96,7 +96,7 @@ CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
   --query "UserPoolClients[?ClientName=='${NAME}'].ClientId | [0]" --output text)
 if [[ "$CLIENT_ID" == "None" ]]; then
   # Public client (no secret): it will live in a browser extension.
-  # USER_PASSWORD_AUTH is for invoke.sh testing; slice 4 adds the hosted UI + PKCE.
+  # USER_PASSWORD_AUTH is for invoke.sh testing.
   CLIENT_ID=$(aws cognito-idp create-user-pool-client --user-pool-id "$POOL_ID" \
     --client-name "$NAME" --no-generate-secret \
     --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \

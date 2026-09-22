@@ -5,7 +5,7 @@ from langchain_core.messages import trim_messages
 from model import model_with_tools
 from prompts import prompt
 from state import AgentState
-from tools import TOOLS as TOOL_LIST
+from tools import TOOLS
 
 
 log = logging.getLogger("capstone")
@@ -38,11 +38,11 @@ def agent_node(state: AgentState):
     return {"messages": [response]}
 
 
-TOOLS = {t.name: t for t in TOOL_LIST}
+TOOLS_BY_NAME = {t.name: t for t in TOOLS}
 
 
 def _error_result(call, message):
-    """A tool result that reports a failure instead of a price."""
+    """A tool result that reports a failure instead of the tool's output."""
     return {
         "role": "tool",
         "content": message,
@@ -62,7 +62,7 @@ def tools_node(state: AgentState):
     last_message = state["messages"][-1]
     results = []
     for call in last_message.tool_calls:
-        tool = TOOLS.get(call["name"])
+        tool = TOOLS_BY_NAME.get(call["name"])
         if tool is None:
             results.append(_error_result(call, f"Unknown tool: {call['name']}"))
             continue

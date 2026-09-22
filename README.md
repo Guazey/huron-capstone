@@ -1,57 +1,69 @@
-# Capstone Agent
+# Market Sidebar
 
-A small agent that answers stock-price questions by deciding, on its own,
-when to look up real data instead of guessing.
-
-## What it does
-
-Takes a question, and if it needs a stock price to answer it, calls a tool
-to look one up, then uses that result to give a real answer — rather than
-just generating a plausible-sounding number.
+A Chrome side panel that answers investing questions while you trade. It looks
+up live market data and SEC filings instead of guessing, links every answer to
+its sources, and remembers the conversation so follow-ups work.
 
 ```
-$ python main.py "Is TSLA above 200 dollars?"
-human: Is TSLA above 200 dollars?
-ai:    [asks to run get_stock_price for TSLA]
-tool:  TSLA: $378.90 as of 2026-09-22 (previous close $375.30, +0.96%)
-ai:    Yes. As of 2026-09-22, TSLA is at $378.90, above $200.
+You:   How has TSLA moved over the last 3 months?
+Agent: [looks up price history] Essentially flat, down 0.71% ($381.61 -> $378.90)...
+You:   what did they do in order for it to not grow?
+Agent: [looks up earnings, news, fundamentals] Q2 EPS of $0.33 missed the $0.54
+       estimate by 39.1%... Sources: [TSLA earnings](https://...), ...
 ```
-
-Four steps: the question, the model asking for a lookup, the lookup's
-result, and the model's answer built on that result. If the question
-doesn't need a price, the model answers directly and the lookup never runs.
 
 ## How the pieces fit together
 
-- **Bedrock** hosts the Claude model on AWS's infrastructure. The code never
-  talks to Anthropic directly, which matters for clients who need everything
-  inside their existing AWS security and compliance boundary.
-- **LangChain** provides the model wrapper, the tool definition, and the prompt.
-- **LangGraph** provides the control flow — it's the loop that lets the
-  model ask for a tool, get a real result, and use it in its final answer.
+- **Chrome side panel** (React + TypeScript + Vite) with **Cognito** login
+  (hosted UI, OAuth code + PKCE).
+- **Amazon Bedrock AgentCore Runtime** hosts the agent, rejects calls without a
+  valid login, and streams answers back. **AgentCore Memory** keeps each chat
+  (per user, 7 days).
+- **The agent**: Python, **LangChain**, and **LangGraph**, a loop that lets
+  Claude call tools, read the results, and answer from them.
+- **Claude Haiku 4.5 on Amazon Bedrock**: the model. The code never calls
+  Anthropic directly, so everything stays inside the AWS account.
+- **Data**: live market data from Yahoo Finance (yfinance), and SEC filings
+  in a **Bedrock Managed Knowledge Base** (the RAG part).
+
+Diagram: [`docs/architecture.excalidraw`](docs/architecture.excalidraw) (open at excalidraw.com).
+Design and decisions: [`docs/architecture.md`](docs/architecture.md), [`docs/decisions/`](docs/decisions/).
+
+## The agent's tools
+
+| Tool | Answers |
+| --- | --- |
+| `search_ticker` | "What's SpaceX's ticker?" (live Yahoo search; the model's memory of listings is out of date) |
+| `get_stock_price` | Current price and change |
+| `get_price_history` | Moves over 5 days to 5 years |
+| `get_company_profile` | Valuation, growth, margins, analyst consensus |
+| `get_earnings` | Next report date; recent EPS vs. estimates |
+| `get_news` | Headlines for one company or the whole market |
+| `get_market_overview` | Indexes and today's top gainers, losers, most active |
+| `search_sec_filings` | Passages from 10-K/10-Q filings (risks, strategy, IPO details) |
+
+Every tool result carries the exact page it came from. Answers end with a
+Sources line, and the panel only makes those tool-returned links clickable.
 
 ## Where each piece lives
 
-Each file does one job and can be run on its own to see that job in isolation.
+Each Python file does one job, and most can be run on their own
+(`python tools.py`, `python graph.py`, ...) to see that job in isolation.
 
 | File | What it is |
 | --- | --- |
-| `sec_edgar.py` | Loads recent SEC filings (10-K, 10-Q) for a watchlist into S3 and runs Knowledge Base ingestion. Needs `SEC_USER_AGENT` in `.env`. |
-| `knowledge.py` | Searches the SEC filings Knowledge Base (the RAG part). |
-| `market_data.py` | The only file that talks to the market data provider (yfinance): ticker validation, 60s cache, timeouts. |
-| `tools.py` | The tools the model can ask for: `get_stock_price` and `get_price_history`, both live via `market_data.py`. |
-| `prompts.py` | The instructions the model sees on every turn, plus a slot for the conversation so far. |
-| `model.py` | The connection to Claude on Bedrock, with the tool attached so the model knows it exists. |
-| `state.py` | The shared memory that flows between steps: the list of messages, set up so each step appends rather than overwrites. |
-| `nodes.py` | The two steps that do the work: one calls the model, one runs whatever tool the model asked for. |
-| `graph.py` | Wires the two steps together, including the decision that either loops back or stops. |
-| `main.py` | Runs the whole thing on a question and prints every message. |
-| `app.py` | The AgentCore Runtime entry point: the same graph served over HTTP (`/invocations`, `/ping`), streaming the answer as Server-Sent Events with one structured log line per request. |
-| `eval.py` | Four live checks (right tool called, every $ amount grounded in a tool result, unknown ticker, no buy/sell advice). Rerun after any change to the prompt, model, tools, or graph. |
-| `tests/` | Unit tests for the parts that don't need a model or the network: market data (yfinance stubbed), the tools, and the tool-result step. Run free in CI. |
-| `extension/` | The Chrome side panel (React + Vite + TypeScript). Build: `cd extension && npm install && npm run build`, then load `extension/dist` in `chrome://extensions` → Load unpacked. |
-| `infra/` | Deploy to AgentCore (`deploy.sh`), create a login (`create_user.sh`), call it from the terminal (`invoke.sh`), delete it all (`teardown.sh`). |
-| `docs/` | [`architecture.md`](docs/architecture.md) for the sidebar + AgentCore plan, and [`decisions/`](docs/decisions/) for ADRs. |
+| `app.py` | AgentCore entry point: validates the request, keys memory by session + signed-in user, streams tool/text/sources/done events, logs one line per request (never the question text) |
+| `graph.py`, `nodes.py`, `state.py` | The LangGraph loop: call the model, run the tools it asked for, repeat |
+| `prompts.py`, `model.py` | The system prompt; the Bedrock model with timeouts, retries, and `max_tokens` |
+| `tools.py` | The 8 tools above |
+| `market_data.py` | The only code that talks to yfinance: ticker validation, 60s cache, cleaning third-party text |
+| `sec_edgar.py` | Loads recent 10-K/10-Q filings for a watchlist into S3 and runs Knowledge Base ingestion |
+| `knowledge.py` | Searches the filings Knowledge Base |
+| `main.py` | Asks one question from the terminal and prints every step |
+| `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance |
+| `tests/` | Unit tests with the network and model stubbed; run in CI |
+| `extension/` | The Chrome side panel |
+| `infra/` | `deploy.sh`, `create_user.sh`, `invoke.sh`, `teardown.sh`, and the deployer IAM policy |
 
 ## Running it
 
@@ -59,27 +71,28 @@ Each file does one job and can be run on its own to see that job in isolation.
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 aws configure          # credentials stay in ~/.aws, never in this folder
-cp .env.example .env   # then set the region and model ID
+cp .env.example .env   # set the region, model ID, and SEC_USER_AGENT
 python main.py "What's the price of AAPL?"
-pytest                 # unit tests for the deterministic code, no AWS needed
-python eval.py         # should print 4/4 passed; calls Bedrock and Yahoo
-python app.py          # serves the agent on localhost:8080 the way AgentCore will; see the curl example at the top of app.py
+pytest                 # unit tests, no AWS needed
+python eval.py         # live eval; calls Bedrock, Yahoo, and the Knowledge Base
+python app.py          # serves the agent on localhost:8080 like AgentCore does
 ```
 
-The model is a single string in `.env`. Swapping Haiku for Sonnet, or any
-other Claude model available in Bedrock, changes nothing else in the code.
+Deploy and use it:
 
-## What this isn't yet
+```
+infra/deploy.sh                           # everything in AWS (needs infra/deployer-policy.json)
+infra/create_user.sh                      # your sidebar login
+set -a; source .env; source infra/outputs.env; set +a
+python sec_edgar.py                       # load SEC filings into the Knowledge Base
+cd extension && npm install && npm run build   # then chrome://extensions -> Load unpacked -> extension/dist
+infra/teardown.sh                         # delete it all
+```
 
-This is a working prototype, not a production system. Before I'd call it
-production-ready, it would need: error handling for a failed tool call or
-a Bedrock timeout, monitoring so I'd know if it started failing silently,
-and a keyed market data provider instead of yfinance (which is unofficial
-and can be rate-limited).
+## Known limits
 
-The path I'd actually take to get there: deploy this through Amazon
-Bedrock AgentCore rather than build all of that hardening by hand.
-AgentCore is AWS's managed runtime for exactly this — session isolation,
-identity/auth, memory, observability, and scaling — and it's framework-
-agnostic, so it runs the LangGraph agent as-is rather than requiring a
-rewrite.
+- yfinance is unofficial: it can be rate-limited, and some quotes are delayed.
+  `market_data.py` is the only file to change to switch to a keyed provider.
+- SEC filings cover a 10-company watchlist (`sec_edgar.py`) and stay as loaded
+  until `sec_edgar.py` is rerun.
+- Information only, not financial advice. The agent never places trades.

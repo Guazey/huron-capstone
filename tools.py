@@ -45,7 +45,7 @@ def get_stock_price(ticker: str) -> str:
 
 @tool
 def get_price_history(
-    ticker: str, period: Literal["5d", "1mo", "3mo", "6mo", "1y", "5y"]
+    ticker: str, period: Literal[market_data.PERIODS]
 ) -> str:
     """Summarize how a ticker's price moved over a period: start, end, % change, high, low."""
     symbol = market_data.normalize_ticker(ticker)
@@ -85,10 +85,6 @@ def _fmt_pct(value) -> str:
     return f"{value:+.2f}%" if isinstance(value, (int, float)) else "n/a"
 
 
-def _fmt_price(value) -> str:
-    return f"{value:,.2f}" if isinstance(value, (int, float)) else "n/a"
-
-
 @tool
 def get_market_overview() -> str:
     """Snapshot of the US market right now: open or closed, the major indexes, and today's top gainers, losers, and most active stocks.
@@ -98,13 +94,13 @@ def get_market_overview() -> str:
     o = market_data.get_market_overview()
     lines = [f"US market: {o['message'] or o['status'] or 'status unknown'}", "Indexes:"]
     for i in o["indexes"]:
-        lines.append(f"- {i['name']} ({i['symbol']}): {_fmt_price(i['price'])} ({_fmt_pct(i['change_pct'])})")
+        lines.append(f"- {i['name']} ({i['symbol']}): {_fmt_num(i['price'])} ({_fmt_pct(i['change_pct'])})")
     titles = {"gainers": "Top gainers", "losers": "Top losers", "most_active": "Most active"}
     for key, title in titles.items():
         lines.append(f"{title}:")
         for m in o["movers"].get(key) or []:
             lines.append(
-                f"- {m['symbol']} {m['name']}: ${_fmt_price(m['price'])} "
+                f"- {m['symbol']} {m['name']}: ${_fmt_num(m['price'])} "
                 f"({_fmt_pct(m['change_pct'])}) <{yahoo_url(m['symbol'])}>"
             )
     lines.append(_sources(
