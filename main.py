@@ -8,9 +8,12 @@ import sys
 
 from graph import app
 
-question = " ".join(sys.argv[1:]) or "What's the price of AAPL?"
 
-result = app.invoke({"messages": [("user", question)]})
+def main(question: str) -> None:
+    result = app.invoke({"messages": [("user", question)]})
+    for m in result["messages"]:
+        print(f"{m.type}: {m.content}")
 
-for m in result["messages"]:
-    print(f"{m.type}: {m.content}")
+
+if __name__ == "__main__":
+    main(" ".join(sys.argv[1:]) or "What's the price of AAPL?")

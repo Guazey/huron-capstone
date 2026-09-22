@@ -14,7 +14,7 @@ price and the model didn't invent one.
 """
 import re
 
-from graph import app  # main.py runs the agent on import, so import the graph directly
+from graph import app
 
 test_cases = [
     {"question": "What's the price of AAPL?", "expect": "227.14"},

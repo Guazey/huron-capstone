@@ -15,15 +15,44 @@ def agent_node(state: AgentState):
     return {"messages": [response]}
 
 
+TOOLS = {get_stock_price.name: get_stock_price}
+
+
 def tools_node(state: AgentState):
-    """Run every tool the last message asked for; add the results to state."""
+    """Run every tool the last message asked for; add the results to state.
+
+    Every tool_call gets exactly one tool result, even when the tool is
+    unknown or raises. Bedrock rejects the next turn if a tool_use block has
+    no matching tool_result, so an error is returned as a result the model
+    can read and recover from, never dropped.
+    """
     last_message = state["messages"][-1]
     results = []
     for call in last_message.tool_calls:
-        if call["name"] == "get_stock_price":
-            result = get_stock_price.invoke(call["args"])
+        tool = TOOLS.get(call["name"])
+        if tool is None:
             results.append(
-                {"role": "tool", "content": result, "tool_call_id": call["id"]}
+                {
+                    "role": "tool",
+                    "content": f"Unknown tool: {call['name']}",
+                    "tool_call_id": call["id"],
+                    "status": "error",
+                }
+            )
+            continue
+        try:
+            content = tool.invoke(call["args"])
+            results.append(
+                {"role": "tool", "content": content, "tool_call_id": call["id"]}
+            )
+        except Exception as e:  # noqa: BLE001 - any tool failure must become a result
+            results.append(
+                {
+                    "role": "tool",
+                    "content": f"Tool {call['name']} failed: {e}",
+                    "tool_call_id": call["id"],
+                    "status": "error",
+                }
             )
     return {"messages": results}
 

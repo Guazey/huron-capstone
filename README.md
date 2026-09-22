@@ -44,16 +44,18 @@ Each file does one job and can be run on its own to see that job in isolation.
 | `graph.py` | Wires the two steps together, including the decision that either loops back or stops. |
 | `main.py` | Runs the whole thing on a question and prints every message. |
 | `eval.py` | Three repeatable checks, including one failure path, to rerun after any change to the prompt, model, or graph. |
+| `tests/` | Unit tests for the parts that don't need a model: the tool and the tool-result step. Run free in CI. |
 
 ## Running it
 
 ```
 python3 -m venv venv && source venv/bin/activate
-pip install langchain langchain-aws langgraph python-dotenv
+pip install -r requirements.txt
 aws configure          # credentials stay in ~/.aws, never in this folder
 cp .env.example .env   # then set the region and model ID
 python main.py "What's the price of AAPL?"
-python eval.py         # should print 3/3 passed
+pytest                 # unit tests for the deterministic code, no AWS needed
+python eval.py         # should print 3/3 passed; calls Bedrock
 ```
 
 The model is a single string in `.env`. Swapping Haiku for Sonnet, or any
