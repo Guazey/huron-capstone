@@ -22,11 +22,16 @@ def ai_with_calls(*calls):
     ])
 
 
-def test_known_tool_returns_result():
+def test_known_tool_returns_result(monkeypatch):
+    import market_data
+
+    monkeypatch.setattr(market_data, "get_quote", lambda s: {
+        "symbol": s, "price": 248.5, "previous_close": None, "as_of": "2026-09-22",
+    })
     state = {"messages": [ai_with_calls(("get_stock_price", {"ticker": "TSLA"}))]}
     out = tools_node(state)["messages"]
     assert len(out) == 1
-    assert out[0]["content"] == "$248.50"
+    assert out[0]["content"] == "TSLA: $248.50 as of 2026-09-22"
     assert out[0]["tool_call_id"] == "call-0"
     assert "status" not in out[0]
 
@@ -54,7 +59,10 @@ def test_raising_tool_returns_error_result(monkeypatch):
     assert "upstream down" in out[0]["content"]
 
 
-def test_every_call_gets_exactly_one_result():
+def test_every_call_gets_exactly_one_result(monkeypatch):
+    import market_data
+
+    monkeypatch.setattr(market_data, "get_quote", lambda s: None)
     state = {"messages": [ai_with_calls(
         ("get_stock_price", {"ticker": "AAPL"}),
         ("nope", {}),

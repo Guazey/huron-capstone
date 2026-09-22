@@ -4,7 +4,7 @@ from botocore.config import Config
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrockConverse
 
-from tools import get_stock_price
+from tools import TOOLS
 
 load_dotenv()
 
@@ -23,9 +23,9 @@ model = ChatBedrockConverse(
     config=bedrock_config,
 )
 
-# Attach the tool's schema to every request. The model can now *ask* for
-# get_stock_price, but nothing in this file ever runs it.
-model_with_tools = model.bind_tools([get_stock_price])
+# Attach the tool schemas to every request. The model can now *ask* for a
+# tool, but nothing in this file ever runs one.
+model_with_tools = model.bind_tools(TOOLS)
 
 
 if __name__ == "__main__":

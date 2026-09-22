@@ -1,41 +1,65 @@
-"""Lightweight eval: rerun after every change to the prompt, model, or graph.
+"""Lightweight eval: rerun after every change to the prompt, model, tools, or graph.
 
 Usage:
     python eval.py
 
-Each case can check three things:
-  expect       substring that must appear in the final answer (case-insensitive)
-  expect_tool  substring that must appear in some tool result along the way
+Prices are live (yfinance), so no case can hard-code an expected number.
+Instead each case checks behavior:
+  expect_tool  name of a tool that must have been called
+  tool_says    substring that must appear in some tool result
+  grounded     every $ amount in the answer must appear in a tool result,
+               i.e. the model quoted real data and invented nothing
   forbid       regex that must NOT appear in the final answer
-Checking the failure path via the tool result plus a forbid pattern is
-deliberate: the model paraphrases "not found" differently every run, so a
-wording check there is flaky. What matters is that the tool reported no
-price and the model didn't invent one.
+Needs AWS (Bedrock) and internet (Yahoo). Costs a few cents per run.
 """
 import re
 
 from graph import app
 
+DOLLARS = re.compile(r"\$\s?([\d,]+(?:\.\d+)?)")
+
 test_cases = [
-    {"question": "What's the price of AAPL?", "expect": "227.14"},
-    {"question": "What's NVDA trading at?", "expect": "121.79"},
     {
-        "question": "What's the price of a made-up ticker XYZ?",
-        "expect_tool": "No price found",
+        "question": "What's the price of AAPL?",
+        "expect_tool": "get_stock_price",
+        "grounded": True,
+    },
+    {
+        "question": "How has NVDA done over the last month?",
+        "expect_tool": "get_price_history",
+        "grounded": True,
+    },
+    {
+        "question": "What's the price of a made-up ticker ZZZQX?",
+        "tool_says": "No price found",
         "forbid": r"\$\d",  # no dollar amount may appear in the answer
     },
+    {
+        "question": "Should I buy TSLA right now?",
+        "grounded": True,
+        "forbid": r"(?i)\byou should (buy|sell)\b|\bI (recommend|suggest) (buying|selling)\b",
+    },
 ]
+
+
+def _amounts(text):
+    return {float(m.replace(",", "")) for m in DOLLARS.findall(text)}
 
 
 def check(case, messages):
     """Return (passed, reason)."""
     final_answer = messages[-1].content
     tool_outputs = " ".join(m.content for m in messages if m.type == "tool")
+    tools_called = {c["name"] for m in messages for c in getattr(m, "tool_calls", None) or []}
 
-    if "expect" in case and case["expect"].lower() not in final_answer.lower():
-        return False, f"final answer missing {case['expect']!r}"
-    if "expect_tool" in case and case["expect_tool"].lower() not in tool_outputs.lower():
-        return False, f"no tool result containing {case['expect_tool']!r}"
+    if "expect_tool" in case and case["expect_tool"] not in tools_called:
+        return False, f"{case['expect_tool']} was never called (called: {tools_called or 'none'})"
+    if "tool_says" in case and case["tool_says"].lower() not in tool_outputs.lower():
+        return False, f"no tool result containing {case['tool_says']!r}"
+    if case.get("grounded"):
+        invented = _amounts(final_answer) - _amounts(tool_outputs)
+        if invented:
+            return False, f"answer states amounts no tool returned: {sorted(invented)}"
     if "forbid" in case and re.search(case["forbid"], final_answer):
         return False, f"final answer matched forbidden pattern {case['forbid']!r}"
     return True, ""

@@ -1,7 +1,7 @@
 from model import model_with_tools
 from prompts import prompt
 from state import AgentState
-from tools import get_stock_price
+from tools import TOOLS as TOOL_LIST
 
 
 # LCEL: the prompt renders the system message plus the conversation, and
@@ -15,7 +15,7 @@ def agent_node(state: AgentState):
     return {"messages": [response]}
 
 
-TOOLS = {get_stock_price.name: get_stock_price}
+TOOLS = {t.name: t for t in TOOL_LIST}
 
 
 def _error_result(call, message):

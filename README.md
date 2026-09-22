@@ -13,8 +13,8 @@ just generating a plausible-sounding number.
 $ python main.py "Is TSLA above 200 dollars?"
 human: Is TSLA above 200 dollars?
 ai:    [asks to run get_stock_price for TSLA]
-tool:  $248.50
-ai:    Yes, TSLA is currently trading at $248.50, which is above $200.
+tool:  TSLA: $378.90 as of 2026-09-22 (previous close $375.30, +0.96%)
+ai:    Yes. As of 2026-09-22, TSLA is at $378.90, above $200.
 ```
 
 Four steps: the question, the model asking for a lookup, the lookup's
@@ -36,15 +36,17 @@ Each file does one job and can be run on its own to see that job in isolation.
 
 | File | What it is |
 | --- | --- |
-| `tools.py` | The one tool the model can ask for: a stock-price lookup (hardcoded prices for now). |
+| `market_data.py` | The only file that talks to the market data provider (yfinance): ticker validation, 60s cache, timeouts. |
+| `tools.py` | The tools the model can ask for: `get_stock_price` and `get_price_history`, both live via `market_data.py`. |
 | `prompts.py` | The instructions the model sees on every turn, plus a slot for the conversation so far. |
 | `model.py` | The connection to Claude on Bedrock, with the tool attached so the model knows it exists. |
 | `state.py` | The shared memory that flows between steps: the list of messages, set up so each step appends rather than overwrites. |
 | `nodes.py` | The two steps that do the work: one calls the model, one runs whatever tool the model asked for. |
 | `graph.py` | Wires the two steps together, including the decision that either loops back or stops. |
 | `main.py` | Runs the whole thing on a question and prints every message. |
-| `eval.py` | Three repeatable checks, including one failure path, to rerun after any change to the prompt, model, or graph. |
-| `tests/` | Unit tests for the parts that don't need a model: the tool and the tool-result step. Run free in CI. |
+| `eval.py` | Four live checks (right tool called, every $ amount grounded in a tool result, unknown ticker, no buy/sell advice). Rerun after any change to the prompt, model, tools, or graph. |
+| `tests/` | Unit tests for the parts that don't need a model or the network: market data (yfinance stubbed), the tools, and the tool-result step. Run free in CI. |
+| `docs/` | [`architecture.md`](docs/architecture.md) for the sidebar + AgentCore plan, and [`decisions/`](docs/decisions/) for ADRs. |
 
 ## Running it
 
@@ -55,7 +57,7 @@ aws configure          # credentials stay in ~/.aws, never in this folder
 cp .env.example .env   # then set the region and model ID
 python main.py "What's the price of AAPL?"
 pytest                 # unit tests for the deterministic code, no AWS needed
-python eval.py         # should print 3/3 passed; calls Bedrock
+python eval.py         # should print 4/4 passed; calls Bedrock and Yahoo
 ```
 
 The model is a single string in `.env`. Swapping Haiku for Sonnet, or any
@@ -66,8 +68,8 @@ other Claude model available in Bedrock, changes nothing else in the code.
 This is a working prototype, not a production system. Before I'd call it
 production-ready, it would need: error handling for a failed tool call or
 a Bedrock timeout, monitoring so I'd know if it started failing silently,
-a real data source instead of a hardcoded dictionary, and automated tests
-that check its answers stay correct as the prompt or model changes.
+and a keyed market data provider instead of yfinance (which is unofficial
+and can be rate-limited).
 
 The path I'd actually take to get there: deploy this through Amazon
 Bedrock AgentCore rather than build all of that hardening by hand.
