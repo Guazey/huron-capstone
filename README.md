@@ -43,6 +43,7 @@ Each file does one job and can be run on its own to see that job in isolation.
 | `nodes.py` | The two steps that do the work: one calls the model, one runs whatever tool the model asked for. |
 | `graph.py` | Wires the two steps together, including the decision that either loops back or stops. |
 | `main.py` | Runs the whole thing on a question and prints every message. |
+| `eval.py` | Three repeatable checks, including one failure path, to rerun after any change to the prompt, model, or graph. |
 
 ## Running it
 
@@ -52,6 +53,7 @@ pip install langchain langchain-aws langgraph python-dotenv
 aws configure          # credentials stay in ~/.aws, never in this folder
 cp .env.example .env   # then set the region and model ID
 python main.py "What's the price of AAPL?"
+python eval.py         # should print 3/3 passed
 ```
 
 The model is a single string in `.env`. Swapping Haiku for Sonnet, or any
