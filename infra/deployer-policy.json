@@ -1,0 +1,93 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrThisRepoOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository", "ecr:DescribeRepositories", "ecr:DeleteRepository",
+        "ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer", "ecr:ListImages", "ecr:DescribeImages"
+      ],
+      "Resource": "arn:aws:ecr:us-west-2:*:repository/capstone-sidebar"
+    },
+    {
+      "Sid": "RuntimeRoleOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:GetRole", "iam:DeleteRole",
+        "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::*:role/capstone-sidebar-runtime"
+    },
+    {
+      "Sid": "PassRuntimeRoleToAgentCoreOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/capstone-sidebar-runtime",
+      "Condition": { "StringEquals": { "iam:PassedToService": "bedrock-agentcore.amazonaws.com" } }
+    },
+    {
+      "Sid": "AgentCoreServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": { "StringLike": { "iam:AWSServiceName": "*bedrock-agentcore.amazonaws.com" } }
+    },
+    {
+      "Sid": "CognitoCreateAndFind",
+      "Effect": "Allow",
+      "Action": ["cognito-idp:CreateUserPool", "cognito-idp:ListUserPools"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CognitoManagePools",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:DescribeUserPool", "cognito-idp:DeleteUserPool",
+        "cognito-idp:ListUserPoolClients", "cognito-idp:CreateUserPoolClient",
+        "cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient",
+        "cognito-idp:CreateUserPoolDomain", "cognito-idp:DeleteUserPoolDomain",
+        "cognito-idp:ListUsers", "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword"
+      ],
+      "Resource": "arn:aws:cognito-idp:us-west-2:*:userpool/*"
+    },
+    {
+      "Sid": "AgentCoreRuntimes",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:CreateAgentRuntime", "bedrock-agentcore:UpdateAgentRuntime",
+        "bedrock-agentcore:GetAgentRuntime", "bedrock-agentcore:DeleteAgentRuntime",
+        "bedrock-agentcore:ListAgentRuntimes", "bedrock-agentcore:ListAgentRuntimeVersions",
+        "bedrock-agentcore:ListAgentRuntimeEndpoints", "bedrock-agentcore:GetAgentRuntimeEndpoint",
+        "bedrock-agentcore:CreateWorkloadIdentity", "bedrock-agentcore:GetWorkloadIdentity",
+        "bedrock-agentcore:UpdateWorkloadIdentity", "bedrock-agentcore:DeleteWorkloadIdentity"
+      ],
+      "Resource": "*",
+      "Condition": { "StringEquals": { "aws:RequestedRegion": "us-west-2" } }
+    },
+    {
+      "Sid": "LogsFind",
+      "Effect": "Allow",
+      "Action": "logs:DescribeLogGroups",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsRuntimeGroupsOnly",
+      "Effect": "Allow",
+      "Action": [
+        "logs:PutRetentionPolicy", "logs:DeleteLogGroup",
+        "logs:FilterLogEvents", "logs:GetLogEvents", "logs:DescribeLogStreams",
+        "logs:StartLiveTail", "logs:StartQuery", "logs:GetQueryResults"
+      ],
+      "Resource": "arn:aws:logs:us-west-2:*:log-group:/aws/bedrock-agentcore/runtimes/*"
+    }
+  ]
+}
