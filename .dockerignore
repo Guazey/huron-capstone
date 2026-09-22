@@ -10,3 +10,5 @@ infra
 extension
 *.code-workspace
 .DS_Store
+eval.py
+main.py

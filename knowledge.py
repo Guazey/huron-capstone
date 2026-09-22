@@ -68,7 +68,9 @@ def search(query: str, ticker: str | None = None, limit: int = 5) -> list[dict]:
         meta = parse_key(_location_uri(r))
         if meta is None or (ticker and meta["ticker"] != ticker):
             continue
-        text = " ".join((r.get("content") or {}).get("text", "").split())
+        # Filing text is third-party: no <...> so it can't forge a source link.
+        raw = (r.get("content") or {}).get("text", "").replace("<", " ").replace(">", " ")
+        text = " ".join(raw.split())
         if is_table_of_contents(text):
             continue
         passages.append({**meta, "text": text[:MAX_PASSAGE_CHARS], "score": r.get("score")})

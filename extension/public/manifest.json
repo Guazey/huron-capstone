@@ -22,5 +22,8 @@
   "host_permissions": [
     "https://bedrock-agentcore.us-west-2.amazonaws.com/*",
     "https://*.auth.us-west-2.amazoncognito.com/*"
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self'; connect-src https://bedrock-agentcore.us-west-2.amazonaws.com https://*.auth.us-west-2.amazoncognito.com"
+  }
 }

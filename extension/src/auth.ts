@@ -154,5 +154,14 @@ export async function accessToken(): Promise<string | null> {
 }
 
 export async function signOut(): Promise<void> {
+  const session = await currentSession();
   await save(null);
+  if (session?.refreshToken) {
+    // Best effort: local sign-out already happened even if this fails.
+    await fetch(`${config.loginHost}/oauth2/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: session.refreshToken, client_id: config.clientId }),
+    }).catch(() => undefined);
+  }
 }

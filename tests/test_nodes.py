@@ -56,7 +56,9 @@ def test_raising_tool_returns_error_result(monkeypatch):
     state = {"messages": [ai_with_calls(("get_stock_price", {"ticker": "AAPL"}))]}
     out = tools_node(state)["messages"]
     assert out[0]["status"] == "error"
-    assert "upstream down" in out[0]["content"]
+    # Exception text can carry ARNs/account IDs: logged, never shown to the model.
+    assert "upstream down" not in out[0]["content"]
+    assert "unavailable" in out[0]["content"]
 
 
 def test_every_call_gets_exactly_one_result(monkeypatch):

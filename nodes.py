@@ -1,3 +1,5 @@
+import logging
+
 from langchain_core.messages import trim_messages
 
 from model import model_with_tools
@@ -5,6 +7,8 @@ from prompts import prompt
 from state import AgentState
 from tools import TOOLS as TOOL_LIST
 
+
+log = logging.getLogger("capstone")
 
 # LCEL: the prompt renders the system message plus the conversation, and
 # pipes the result straight into the tool-bound model.
@@ -67,8 +71,11 @@ def tools_node(state: AgentState):
             results.append(
                 {"role": "tool", "content": content, "tool_call_id": call["id"]}
             )
-        except Exception as e:  # noqa: BLE001 - any tool failure must become a result
-            results.append(_error_result(call, f"Tool {call['name']} failed: {e}"))
+        except Exception:  # noqa: BLE001 - any tool failure must become a result
+            log.exception("tool %s failed", call["name"])
+            results.append(_error_result(
+                call, f"Tool {call['name']} failed: the data source is unavailable right now."
+            ))
     return {"messages": results}
 
 

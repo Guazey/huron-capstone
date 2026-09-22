@@ -50,25 +50,28 @@ def _checkpointer():
 
 
 graph = with_memory(_checkpointer())
+MEMORY_IS_SHARED = bool(os.environ.get("MEMORY_ID"))
 
 
-def actor_id(headers: dict | None) -> str:
+def actor_id(headers: dict | None, require: bool = False) -> str:
     """Who is asking: the Cognito user ID (sub) from the bearer token.
 
     AgentCore's JWT authorizer has already verified this token before the
     request reaches us, so reading the claim without re-verifying is safe.
     Keying memory by user means one person can't load another's chat, even
-    with a guessed session ID. Local runs have no token and share "local".
+    with a guessed session ID. Local runs have no token and share "local";
+    deployed (require=True), a missing or unreadable token is refused rather
+    than pooled into a shared namespace.
     """
     auth = (headers or {}).get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return "local"
     try:
-        payload = auth.split(".")[1]
+        payload = auth.removeprefix("Bearer ").split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
         return str(claims["sub"])
     except (IndexError, KeyError, ValueError):
-        return "unknown"
+        if require:
+            raise BadRequest("Your sign-in couldn't be read. Sign out and sign in again.")
+        return "local"
 
 
 class BadRequest(ValueError):
@@ -129,16 +132,14 @@ async def invoke(payload, context):
     outcome = "ok"
     prompt = ""
 
-    # Without a session ID there's no conversation to continue: use a
-    # throwaway thread so the question is still answered.
-    thread_id = context.session_id or f"no-session-{request_id}"
-    config = {"configurable": {
-        "thread_id": thread_id,
-        "actor_id": actor_id(context.request_headers),
-    }}
-
     try:
         prompt = validate(payload)
+        # Without a session ID there's no conversation to continue: use a
+        # throwaway thread so the question is still answered.
+        config = {"configurable": {
+            "thread_id": context.session_id or f"no-session-{request_id}",
+            "actor_id": actor_id(context.request_headers, require=MEMORY_IS_SHARED),
+        }}
         sent_urls: set[str] = set()
         async for mode, data in graph.astream(
             {"messages": [("user", prompt)]}, config, stream_mode=["messages", "updates"]

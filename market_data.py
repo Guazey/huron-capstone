@@ -124,7 +124,7 @@ def search(query: str, limit: int = 5) -> list[dict]:
                 continue
             matches.append({
                 "symbol": item["symbol"],
-                "name": (item.get("longname") or item.get("shortname") or "").strip(),
+                "name": _clean_text(item.get("longname") or item.get("shortname")),
                 "type": item.get("typeDisp") or item["quoteType"],
                 "exchange": item.get("exchDisp") or item.get("exchange") or "",
             })
@@ -139,8 +139,14 @@ _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]+")
 
 
 def _clean_text(text, limit: int = MAX_HEADLINE_CHARS) -> str:
-    """Third-party text: flatten to one short line of plain text."""
-    return " ".join(_CONTROL_CHARS.sub(" ", str(text or "")).split())[:limit]
+    """Third-party text: flatten to one short line of plain text.
+
+    Angle brackets are removed because tools mark their own source URLs as
+    <https://...>, and app.py turns exactly those into clickable links; a
+    headline must not be able to forge one.
+    """
+    text = _CONTROL_CHARS.sub(" ", str(text or "")).replace("<", " ").replace(">", " ")
+    return " ".join(text.split())[:limit]
 
 
 def _https_or_none(url) -> str | None:

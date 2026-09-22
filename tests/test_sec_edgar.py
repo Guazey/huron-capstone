@@ -154,3 +154,16 @@ def test_table_of_contents_chunks_are_dropped(monkeypatch):
     monkeypatch.setenv("KB_ID", "KB123")
     monkeypatch.setattr(knowledge, "_client", Client())
     assert [p["text"] for p in knowledge.search("risk factors", "TSLA")] == [real]
+
+
+def test_filing_passages_cannot_forge_source_links(monkeypatch):
+    import knowledge
+
+    class Client:
+        def retrieve(self, **kwargs):
+            return fake_results((TSLA_KEY, "Risk text <https://evil.example/> more", 0.8))
+
+    monkeypatch.setenv("KB_ID", "KB123")
+    monkeypatch.setattr(knowledge, "_client", Client())
+    text = knowledge.search("risk", "TSLA")[0]["text"]
+    assert "<" not in text and ">" not in text

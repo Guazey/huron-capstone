@@ -43,7 +43,7 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
   --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH \
   --access-token-validity 60 --id-token-validity 60 --refresh-token-validity 7 \
   --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
-  --prevent-user-existence-errors ENABLED \
+  --prevent-user-existence-errors ENABLED --enable-token-revocation \
   --supported-identity-providers COGNITO \
   --callback-urls "$REDIRECT_URL" --logout-urls "$REDIRECT_URL" \
   --allowed-o-auth-flows code --allowed-o-auth-scopes openid email \

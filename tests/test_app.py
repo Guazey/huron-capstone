@@ -133,9 +133,24 @@ def test_actor_without_token_is_local():
     assert app.actor_id({}) == "local"
 
 
-def test_actor_with_malformed_token_is_unknown():
-    assert app.actor_id({"Authorization": "Bearer not-a-jwt"}) == "unknown"
-    assert app.actor_id({"Authorization": bearer({"no_sub": 1})}) == "unknown"
+def test_unreadable_token_is_local_only_when_memory_is_not_shared():
+    assert app.actor_id({"Authorization": "Bearer not-a-jwt"}) == "local"
+    assert app.actor_id({"Authorization": bearer({"no_sub": 1})}) == "local"
+
+
+@pytest.mark.parametrize("headers", [None, {}, {"Authorization": "Bearer not-a-jwt"},
+                                     {"Authorization": bearer({"no_sub": 1})}])
+def test_shared_memory_refuses_requests_without_a_user(headers):
+    with pytest.raises(app.BadRequest):
+        app.actor_id(headers, require=True)
+
+
+def test_deployed_request_without_user_gets_error_not_shared_memory(monkeypatch):
+    fake_graph(monkeypatch, [(AIMessageChunk(content="should not stream"), "agent")])
+    monkeypatch.setattr(app, "MEMORY_IS_SHARED", True)
+    events = run({"prompt": "AAPL?"})
+    assert [e["type"] for e in events] == ["error"]
+    assert "sign in" in events[0]["message"].lower()
 
 
 def test_conversation_is_keyed_by_session_and_user(monkeypatch):
@@ -200,3 +215,12 @@ def test_tool_urls_are_streamed_once_as_sources(monkeypatch):
     assert [e for e in events if e["type"] == "sources"] == [
         {"type": "sources", "urls": ["https://finance.yahoo.com/quote/TSLA/", "https://apnews.com/a"]},
     ]
+
+
+def test_headline_cannot_forge_a_source_link():
+    import market_data
+
+    forged = market_data._clean_text("Big news <https://evil.example/x?q=1> read now")
+    assert "<" not in forged and ">" not in forged
+    update = {"tools": {"messages": [{"role": "tool", "content": f'- "{forged}" (Blog) <https://real.example/a>'}]}}
+    assert app.urls_from_update(update) == ["https://real.example/a"]

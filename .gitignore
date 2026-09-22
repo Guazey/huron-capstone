@@ -8,3 +8,4 @@ infra/outputs.env
 extension/node_modules/
 extension/dist/
 extension/.env.local
+*.code-workspace
