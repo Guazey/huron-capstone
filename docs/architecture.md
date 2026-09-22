@@ -40,7 +40,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Tools: `get_stock_price`, `get_price_history` | `tools.py` | done (slice 1) |
 | Agent graph, nodes, prompt, model | `graph.py`, `nodes.py`, `prompts.py`, `model.py` | done; prompt updated for sidebar use |
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
-| ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | slice 3: written, not yet run |
+| ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |
 | Side panel extension | `extension/` | slice 4 |
 | Multi-turn memory + page ticker detection | `app.py`, `extension/` | slice 5 |
 
