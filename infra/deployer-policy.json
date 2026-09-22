@@ -63,12 +63,8 @@
       "Sid": "AgentCoreRuntimes",
       "Effect": "Allow",
       "Action": [
-        "bedrock-agentcore:CreateAgentRuntime", "bedrock-agentcore:UpdateAgentRuntime",
-        "bedrock-agentcore:GetAgentRuntime", "bedrock-agentcore:DeleteAgentRuntime",
-        "bedrock-agentcore:ListAgentRuntimes", "bedrock-agentcore:ListAgentRuntimeVersions",
-        "bedrock-agentcore:ListAgentRuntimeEndpoints", "bedrock-agentcore:GetAgentRuntimeEndpoint",
-        "bedrock-agentcore:CreateWorkloadIdentity", "bedrock-agentcore:GetWorkloadIdentity",
-        "bedrock-agentcore:UpdateWorkloadIdentity", "bedrock-agentcore:DeleteWorkloadIdentity"
+        "bedrock-agentcore:*AgentRuntime*",
+        "bedrock-agentcore:*WorkloadIdentity*"
       ],
       "Resource": "*",
       "Condition": { "StringEquals": { "aws:RequestedRegion": "us-west-2" } }
