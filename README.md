@@ -47,6 +47,8 @@ Each file does one job and can be run on its own to see that job in isolation.
 | `app.py` | The AgentCore Runtime entry point: the same graph served over HTTP (`/invocations`, `/ping`), streaming the answer as Server-Sent Events with one structured log line per request. |
 | `eval.py` | Four live checks (right tool called, every $ amount grounded in a tool result, unknown ticker, no buy/sell advice). Rerun after any change to the prompt, model, tools, or graph. |
 | `tests/` | Unit tests for the parts that don't need a model or the network: market data (yfinance stubbed), the tools, and the tool-result step. Run free in CI. |
+| `extension/` | The Chrome side panel (React + Vite + TypeScript). Build: `cd extension && npm install && npm run build`, then load `extension/dist` in `chrome://extensions` → Load unpacked. |
+| `infra/` | Deploy to AgentCore (`deploy.sh`), create a login (`create_user.sh`), call it from the terminal (`invoke.sh`), delete it all (`teardown.sh`). |
 | `docs/` | [`architecture.md`](docs/architecture.md) for the sidebar + AgentCore plan, and [`decisions/`](docs/decisions/) for ADRs. |
 
 ## Running it

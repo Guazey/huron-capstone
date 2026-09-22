@@ -41,7 +41,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Agent graph, nodes, prompt, model | `graph.py`, `nodes.py`, `prompts.py`, `model.py` | done; prompt updated for sidebar use |
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
 | ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |
-| Side panel extension | `extension/` | slice 4 |
+| Side panel extension | `extension/`, `infra/login_setup.sh` | done (slice 4): built; Cognito hosted login + PKCE |
 | Multi-turn memory + page ticker detection | `app.py`, `extension/` | slice 5 |
 
 ## Request flow
