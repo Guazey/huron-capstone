@@ -37,7 +37,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Piece | File(s) | Status |
 |---|---|---|
 | Market data layer: the only code that knows yfinance; validates tickers, 60s cache, 10s timeout | `market_data.py` | done (slice 1) |
-| Tools: `get_stock_price`, `get_price_history` | `tools.py` | done (slice 1) |
+| Tools: `search_ticker`, `get_stock_price`, `get_price_history`, `get_market_overview`, `get_news` | `tools.py` | done |
 | Agent graph, nodes, prompt, model | `graph.py`, `nodes.py`, `prompts.py`, `model.py` | done; prompt updated for sidebar use |
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
 | ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |

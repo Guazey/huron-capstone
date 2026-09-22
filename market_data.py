@@ -9,6 +9,7 @@ same ticker three times makes one upstream call, not three.
 """
 import re
 import time
+from datetime import datetime, timezone
 
 import yfinance as yf
 
@@ -132,10 +133,127 @@ def search(query: str, limit: int = 5) -> list[dict]:
     return _cached(("search", q.lower()), fetch)[:limit]
 
 
+MOVER_SCREENS = {"gainers": "day_gainers", "losers": "day_losers", "most_active": "most_actives"}
+MAX_HEADLINE_CHARS = 200
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _clean_text(text) -> str:
+    """Headlines are third-party text: flatten to one short line of plain text."""
+    return " ".join(_CONTROL_CHARS.sub(" ", str(text or "")).split())[:MAX_HEADLINE_CHARS]
+
+
+def _https_or_none(url) -> str | None:
+    return url if isinstance(url, str) and url.startswith("https://") else None
+
+
+def _utc(seconds_or_iso) -> str | None:
+    """Epoch seconds or an ISO string -> 'YYYY-MM-DD HH:MM UTC'."""
+    try:
+        if isinstance(seconds_or_iso, (int, float)):
+            moment = datetime.fromtimestamp(seconds_or_iso, tz=timezone.utc)
+        else:
+            moment = datetime.fromisoformat(str(seconds_or_iso).replace("Z", "+00:00"))
+        return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+def get_market_overview(movers_per_list: int = 5) -> dict:
+    """US market status, major indexes, and today's biggest movers."""
+    def fetch():
+        market = yf.Market("US", timeout=REQUEST_TIMEOUT_SECONDS)
+        status = market.status or {}
+        indexes = [
+            {
+                "name": v.get("shortName") or k,
+                "symbol": v.get("symbol"),
+                "price": v.get("regularMarketPrice"),
+                "change_pct": v.get("regularMarketChangePercent"),
+            }
+            for k, v in (market.summary or {}).items()
+            if v.get("regularMarketPrice") is not None
+        ]
+        movers = {}
+        for label, screen in MOVER_SCREENS.items():
+            quotes = yf.screen(screen, count=movers_per_list).get("quotes", [])
+            movers[label] = [
+                {
+                    "symbol": q.get("symbol"),
+                    "name": _clean_text(q.get("shortName") or q.get("longName")),
+                    "price": q.get("regularMarketPrice"),
+                    "change_pct": q.get("regularMarketChangePercent"),
+                }
+                for q in quotes
+                if q.get("symbol")
+            ]
+        return {
+            "status": status.get("status"),
+            "message": _clean_text(status.get("message")),
+            "indexes": indexes,
+            "movers": movers,
+        }
+
+    return _cached(("overview", movers_per_list), fetch)
+
+
+def _headline_from_ticker_news(item: dict) -> dict | None:
+    c = item.get("content") or {}
+    title = _clean_text(c.get("title"))
+    if not title or c.get("contentType") not in (None, "STORY", "VIDEO"):
+        return None
+    return {
+        "title": title,
+        "publisher": _clean_text((c.get("provider") or {}).get("displayName")),
+        "published": _utc(c.get("pubDate")),
+        "url": _https_or_none((c.get("canonicalUrl") or {}).get("url"))
+        or _https_or_none((c.get("clickThroughUrl") or {}).get("url")),
+    }
+
+
+def _headline_from_search_news(item: dict) -> dict | None:
+    title = _clean_text(item.get("title"))
+    if not title:
+        return None
+    return {
+        "title": title,
+        "publisher": _clean_text(item.get("publisher")),
+        "published": _utc(item.get("providerPublishTime")),
+        "url": _https_or_none(item.get("link")),
+    }
+
+
+def get_news(symbol: str | None = None, limit: int = 8) -> list[dict]:
+    """Latest headlines, newest first: for one ticker, or market-wide if symbol is None."""
+    def fetch():
+        if symbol:
+            raw = [_headline_from_ticker_news(n) for n in yf.Ticker(symbol).get_news(count=limit * 2)]
+        else:
+            # No single market-news feed: combine broad-market search results
+            # with S&P 500 news, then de-duplicate by title.
+            broad = yf.Search("stock market", max_results=0, news_count=limit,
+                              timeout=REQUEST_TIMEOUT_SECONDS).news
+            raw = [_headline_from_search_news(n) for n in broad]
+            raw += [_headline_from_ticker_news(n) for n in yf.Ticker("^GSPC").get_news(count=limit)]
+        seen, headlines = set(), []
+        for h in raw:
+            if h and h["title"].lower() not in seen:
+                seen.add(h["title"].lower())
+                headlines.append(h)
+        headlines.sort(key=lambda h: h["published"] or "", reverse=True)
+        return headlines
+
+    return _cached(("news", symbol), fetch)[:limit]
+
+
 if __name__ == "__main__":
     # Live check against Yahoo: needs internet, no AWS.
     print(get_quote("AAPL"))
     print(get_quote("ZZZQX"))
     print(get_history("NVDA", "1mo"))
     print(search("SpaceX"))
+    print(get_market_overview())
+    for h in get_news():
+        print(h)
+    print(get_news("NVDA", limit=3))
     print(normalize_ticker(" brk-b "), normalize_ticker("DROP TABLE"))

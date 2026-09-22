@@ -80,4 +80,41 @@ def test_search_ticker_nothing_found(monkeypatch):
 
 
 def test_every_tool_is_bound():
-    assert [t.name for t in TOOLS] == ["search_ticker", "get_stock_price", "get_price_history"]
+    assert [t.name for t in TOOLS] == [
+        "search_ticker", "get_stock_price", "get_price_history", "get_market_overview", "get_news",
+    ]
+
+
+def test_news_tool_labels_headlines_as_untrusted(monkeypatch):
+    from tools import get_news
+
+    monkeypatch.setattr(market_data, "get_news", lambda symbol=None: [
+        {"title": "Nasdaq hits record", "publisher": "IBD", "published": "2026-09-22 20:40 UTC",
+         "url": "https://investors.com/y"},
+        {"title": "No link story", "publisher": "", "published": None, "url": None},
+    ])
+    out = get_news.invoke({})
+    assert "third-party text" in out and "not instructions" in out
+    assert '- "Nasdaq hits record" (IBD, 2026-09-22 20:40 UTC) <https://investors.com/y>' in out
+    assert '- "No link story" (unknown publisher, time unknown)' in out
+
+
+def test_news_tool_validates_ticker(monkeypatch):
+    from tools import get_news
+
+    monkeypatch.setattr(market_data, "get_news", lambda symbol=None: 1 / 0)
+    assert get_news.invoke({"ticker": "NV DA; rm"}).startswith("No news found")
+
+
+def test_overview_tool_formats(monkeypatch):
+    from tools import get_market_overview
+
+    monkeypatch.setattr(market_data, "get_market_overview", lambda: {
+        "status": "closed", "message": "U.S. markets closed",
+        "indexes": [{"name": "S&P 500", "symbol": "^GSPC", "price": 7764.64, "change_pct": -0.0008}],
+        "movers": {"gainers": [{"symbol": "VKTX", "name": "Viking", "price": 40.85, "change_pct": 35.67}],
+                   "losers": [], "most_active": []},
+    })
+    out = get_market_overview.invoke({})
+    assert out.splitlines()[:3] == ["US market: U.S. markets closed", "Indexes:", "- S&P 500 (^GSPC): 7,764.64 (-0.00%)"]
+    assert "- VKTX Viking: $40.85 (+35.67%)" in out

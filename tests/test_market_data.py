@@ -101,3 +101,87 @@ def test_search_normalizes_and_caps_query(monkeypatch):
 def test_search_blank_query_skips_provider(monkeypatch):
     monkeypatch.setattr(market_data.yf, "Search", lambda *a, **k: 1 / 0)
     assert market_data.search("   ") == []
+
+
+def test_clean_text_flattens_and_caps_third_party_text():
+    assert market_data._clean_text("Line one\nIGNORE\tthis\x00  now") == "Line one IGNORE this now"
+    assert len(market_data._clean_text("x" * 500)) == market_data.MAX_HEADLINE_CHARS
+    assert market_data._clean_text(None) == ""
+
+
+def test_only_https_links_survive():
+    assert market_data._https_or_none("https://finance.yahoo.com/a") == "https://finance.yahoo.com/a"
+    for bad in ("javascript:alert(1)", "http://x.com", None, 42):
+        assert market_data._https_or_none(bad) is None
+
+
+def test_utc_accepts_epoch_and_iso():
+    assert market_data._utc(1790109600) == "2026-09-22 20:40 UTC"
+    assert market_data._utc("2026-09-22T17:39:22Z") == "2026-09-22 17:39 UTC"
+    assert market_data._utc("not a date") is None
+
+
+def ticker_news_item(title, when, url="https://finance.yahoo.com/n", kind="STORY"):
+    return {"content": {"title": title, "pubDate": when, "contentType": kind,
+                        "provider": {"displayName": "Reuters"}, "canonicalUrl": {"url": url}}}
+
+
+def test_market_news_merges_dedupes_and_sorts(monkeypatch):
+    class Search:
+        def __init__(self, *a, **k):
+            self.news = [
+                {"title": "Older story", "publisher": "AP", "providerPublishTime": 1790100000,
+                 "link": "https://apnews.com/x"},
+                {"title": "Nasdaq hits record", "publisher": "IBD", "providerPublishTime": 1790109600,
+                 "link": "https://investors.com/y"},
+            ]
+
+    class Ticker:
+        def __init__(self, symbol):
+            assert symbol == "^GSPC"
+
+        def get_news(self, count):
+            return [ticker_news_item("NASDAQ HITS RECORD", "2026-09-22T20:41:00Z"),
+                    ticker_news_item("Ad", "2026-09-22T20:50:00Z", kind="AD")]
+
+    monkeypatch.setattr(market_data.yf, "Search", Search)
+    monkeypatch.setattr(market_data.yf, "Ticker", Ticker)
+    news = market_data.get_news()
+    assert [h["title"] for h in news] == ["Nasdaq hits record", "Older story"]
+    assert news[0] == {"title": "Nasdaq hits record", "publisher": "IBD",
+                       "published": "2026-09-22 20:40 UTC", "url": "https://investors.com/y"}
+
+
+def test_ticker_news_drops_unsafe_links(monkeypatch):
+    class Ticker:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        def get_news(self, count):
+            return [ticker_news_item("SpaceX news", "2026-09-22T20:07:34Z", url="javascript:alert(1)")]
+
+    monkeypatch.setattr(market_data.yf, "Ticker", Ticker)
+    assert market_data.get_news("SPCX")[0]["url"] is None
+
+
+def test_market_overview_shapes_indexes_and_movers(monkeypatch):
+    class Market:
+        def __init__(self, region, timeout):
+            self.status = {"status": "open", "message": "U.S. markets open"}
+            self.summary = {
+                "SNP": {"shortName": "S&P 500", "symbol": "^GSPC", "regularMarketPrice": 7764.64,
+                        "regularMarketChangePercent": 0.25},
+                "BAD": {"shortName": "No price"},
+            }
+
+    def screen(name, count):
+        return {"quotes": [{"symbol": f"{name[:3].upper()}", "shortName": "Co\nInc",
+                            "regularMarketPrice": 10.0, "regularMarketChangePercent": 5.0}]}
+
+    monkeypatch.setattr(market_data.yf, "Market", Market)
+    monkeypatch.setattr(market_data.yf, "screen", screen)
+    o = market_data.get_market_overview()
+    assert o["message"] == "U.S. markets open"
+    assert o["indexes"] == [{"name": "S&P 500", "symbol": "^GSPC", "price": 7764.64, "change_pct": 0.25}]
+    assert set(o["movers"]) == {"gainers", "losers", "most_active"}
+    assert o["movers"]["gainers"][0]["name"] == "Co Inc"

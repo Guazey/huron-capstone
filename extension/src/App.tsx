@@ -14,15 +14,17 @@ type Message = {
 };
 
 const EXAMPLES = [
+  "What's the biggest news in the market today?",
   "How is NVDA doing today?",
   "How has TSLA moved over the last 3 months?",
-  "Compare AAPL and MSFT right now.",
 ];
 
 const TOOL_LABELS: Record<string, string> = {
   search_ticker: "ticker",
   get_stock_price: "latest price",
   get_price_history: "price history",
+  get_market_overview: "market movers",
+  get_news: "news",
 };
 
 type AuthState = { status: "loading" } | { status: "signedOut" } | { status: "signedIn"; email?: string };
@@ -218,9 +220,14 @@ function AssistantMessage({ message: m }: { message: Message }) {
       {m.text && (
         <Markdown
           components={{
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-            ),
+            // Only real web links are clickable; anything else the model
+            // shaped like a link (a ticker, a relative path) renders as text.
+            a: ({ href, children }) =>
+              href?.startsWith("https://") ? (
+                <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+              ) : (
+                <span>{children}</span>
+              ),
           }}
         >
           {m.text}
