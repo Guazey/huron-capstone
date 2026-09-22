@@ -51,12 +51,14 @@ def test_html_to_text_keeps_content_drops_hidden_xbrl():
       <div style="display:none"><ix:header>dei:EntityName secret</ix:header></div>
       <p>Item 1A.   Risk Factors</p>
       <p>We depend on   suppliers.</p>
-      <table><tr><td>Revenue</td><td></td><td>$ 97,690</td></tr></table>
+      <table><tr><td>Revenue</td><td></td><td>$ 97,690</td></tr>
+             <tr><td>Change</td><td>$</td><td>(2,863</td><td>)</td><td>(3</td><td>%</td></tr></table>
       <script>alert(1)</script></body></html>"""
     text = sec_edgar.html_to_text(html)
     assert "Item 1A. Risk Factors" in text
     assert "We depend on suppliers." in text
     assert "Revenue | $ 97,690" in text
+    assert "Change | $(2,863) | (3%" in text
     assert "secret" not in text and "alert" not in text and ".x{}" not in text
 
 

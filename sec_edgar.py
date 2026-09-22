@@ -16,9 +16,13 @@ import os
 import re
 import sys
 import time
+import warnings
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+# Filings are inline-XBRL XHTML; the HTML parser handles them fine.
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 # Companies whose filings are searchable. Add a ticker and rerun to include it.
 WATCHLIST = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "JPM", "RKLB", "SPCX"]
@@ -83,7 +87,10 @@ def html_to_text(html: str) -> str:
         tag.decompose()
     for row in soup.find_all("tr"):
         cells = [" ".join(c.get_text(" ").split()) for c in row.find_all(["td", "th"])]
-        row.replace_with(" | ".join(c for c in cells if c) + "\n")
+        line = " | ".join(c for c in cells if c)
+        # Filings put "$", "%", and ")" in their own cells: "$ | 94,827 | (3) | %"
+        line = line.replace("$ | ", "$").replace(" | %", "%").replace(" | )", ")")
+        row.replace_with(line + "\n")
     text = soup.get_text("\n")
     lines = (" ".join(line.split()) for line in text.splitlines())
     text = "\n".join(line for line in lines if line)
