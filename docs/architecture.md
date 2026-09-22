@@ -40,7 +40,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Tools: `get_stock_price`, `get_price_history` | `tools.py` | done (slice 1) |
 | Agent graph, nodes, prompt, model | `graph.py`, `nodes.py`, `prompts.py`, `model.py` | done; prompt updated for sidebar use |
 | AgentCore entrypoint that streams the graph's output | `app.py` | done (slice 2), runs locally |
-| ARM64 container + runtime + Cognito | `Dockerfile`, `infra/` | slice 3 |
+| ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | slice 3: written, not yet run |
 | Side panel extension | `extension/` | slice 4 |
 | Multi-turn memory + page ticker detection | `app.py`, `extension/` | slice 5 |
 
@@ -71,9 +71,11 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
   group. Nothing else.
 - **Tool arguments come from the model and are untrusted.** Tickers are
   checked against a regex before any network call, and `period` is an enum.
-- **Logs:** Runtime logs request and response payloads to CloudWatch. Chat
-  text can contain whatever a user types, so encrypt the log group with KMS
-  and set a retention period.
+- **Logs:** Runtime logs request and response payloads to CloudWatch, and
+  chat text can contain whatever a user types. `app.py` logs only the
+  prompt's length. `infra/` sets 14-day retention. A customer-managed KMS key
+  on the log group (about $1 a month) is a follow-up before anyone besides
+  Matt uses it.
 - **No trade actions, ever.** The tools are read-only. The prompt gives
   information, not buy, sell or hold advice, and `eval.py` checks for that.
 
@@ -88,7 +90,8 @@ $0.003 on Haiku 4.5 at list price.
 
 ## Rollback
 
-- Runtime: point the endpoint back at the previous container image version.
+- Runtime: every deploy pushes a new immutable image tag. To roll back, rerun `update-agent-runtime` with the previous tag (listed in ECR).
+- Remove everything: `infra/teardown.sh`.
 - Extension: it's unpacked (not in the Chrome Web Store), so reload the
   previous build.
 
