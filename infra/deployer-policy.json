@@ -64,10 +64,19 @@
       "Effect": "Allow",
       "Action": [
         "bedrock-agentcore:*AgentRuntime*",
-        "bedrock-agentcore:*WorkloadIdentity*"
+        "bedrock-agentcore:*WorkloadIdentit*"
       ],
       "Resource": "*",
       "Condition": { "StringEquals": { "aws:RequestedRegion": "us-west-2" } }
+    },
+    {
+      "Sid": "AgentCoreRuntimesImplicitChecks",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:*AgentRuntime*",
+        "bedrock-agentcore:*WorkloadIdentit*"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:us-west-2:*:*"
     },
     {
       "Sid": "LogsFind",
