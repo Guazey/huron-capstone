@@ -1,10 +1,14 @@
 """Unit tests for tools_node. Feeds it hand-built tool calls, never a model."""
 import os
 
-# nodes -> model builds a Bedrock client at import; give it config so the
-# import works in CI with no .env and no AWS credentials. Nothing is called.
+# nodes -> model builds a Bedrock client at import, and ChatBedrockConverse
+# checks that *some* AWS credentials resolve at construction time. Give it
+# config and obviously fake credentials so the import works in CI with no
+# .env and no ~/.aws. Nothing here ever calls AWS.
 os.environ.setdefault("AWS_REGION", "us-west-2")
 os.environ.setdefault("BEDROCK_MODEL_ID", "placeholder-model-id")
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
 
 from langchain_core.messages import AIMessage  # noqa: E402
 
