@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Market Sidebar",
+  "description": "Ask about a ticker while you trade. Live prices, information only.",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxUYMGIfKz7ejvC1BH+T+sbjQ5EaSwCp4AQqwWlkxCgzK8XUDjQKcuX2UUmKKpZg/Nj7Au3PrldFCmUbw3qs6KLvnRnudyeP9RRoA9GC3nZj/xE4uECsQF5JCLAM8FiV9OiXgjY3jjyK8O9QvzxNu3PHb1FMlVJ6oCNxgcEkiu+1RfZf0R8FSqJj0ZMbEQa5F3nW5hBLgWiSgRafvnMFgBC8uy7aTplxk06B78DHVlhvKaO3WYOjZ3wAoJu2rVEVKOnN9nEWROYsLZi7uHy1Noij28TzwSAM5e8gYgyFwyiGw83c4z7C7DoGr6TPFk1HNiptEUznMc0OE22TyLOFR9wIDAQAB",
+  "action": {
+    "default_title": "Open Market Sidebar"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "sidePanel",
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://bedrock-agentcore.us-west-2.amazonaws.com/*",
+    "https://*.auth.us-west-2.amazoncognito.com/*"
+  ]
+}

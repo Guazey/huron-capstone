@@ -153,3 +153,6 @@ CLIENT_ID=${CLIENT_ID}
 IMAGE=${IMAGE}
 EOF
 printf '\nDeployed. Wrote %s.\nFirst time: infra/create_user.sh, then infra/invoke.sh "How is NVDA doing today?"\n' "$OUTPUTS"
+
+# Hosted login for the Chrome extension + its build config.
+infra/login_setup.sh

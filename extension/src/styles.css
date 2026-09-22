@@ -1,0 +1,73 @@
+:root {
+  --bg: #ffffff;
+  --fg: #16181d;
+  --muted: #5f6570;
+  --border: #dfe2e7;
+  --bubble-user: #eef2ff;
+  --bubble-assistant: #f6f7f9;
+  --accent: #2f5bea;
+  --accent-fg: #ffffff;
+  --error: #b42318;
+  color-scheme: light dark;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171b;
+    --fg: #e8eaee;
+    --muted: #9aa1ad;
+    --border: #2c3038;
+    --bubble-user: #1f2a4d;
+    --bubble-assistant: #1e2127;
+    --accent: #6d8cff;
+    --accent-fg: #0b0d12;
+    --error: #ff8a80;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); }
+
+.panel { display: flex; flex-direction: column; height: 100%; padding: 12px; gap: 10px; }
+.panel.center { justify-content: center; align-items: center; text-align: center; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+h1 { font-size: 16px; margin: 0; }
+.header-actions { display: flex; gap: 6px; }
+
+.messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.empty { display: flex; flex-direction: column; gap: 6px; }
+
+.bubble { padding: 8px 10px; border-radius: 10px; max-width: 100%; overflow-wrap: anywhere; }
+.bubble.user { background: var(--bubble-user); align-self: flex-end; }
+.bubble.assistant { background: var(--bubble-assistant); }
+.bubble p { margin: 0 0 6px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble ul, .bubble ol { margin: 4px 0; padding-left: 18px; }
+
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+.rid { color: var(--muted); font-family: ui-monospace, monospace; }
+
+form { display: flex; gap: 6px; }
+input {
+  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg); font: inherit;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button {
+  font: inherit; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--fg);
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.example { text-align: left; }
+button.link { border: none; padding: 0; color: var(--accent); }
+
+footer { font-size: 11px; }
+.muted { color: var(--muted); }
+.error { color: var(--error); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
