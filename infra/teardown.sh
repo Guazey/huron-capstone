@@ -46,9 +46,10 @@ if [[ "$KB_ID" != "None" ]]; then
   done
   aws bedrock-agent delete-knowledge-base --knowledge-base-id "$KB_ID" >/dev/null && echo "deleted knowledge base"
 fi
-if aws s3api head-bucket --bucket "$FILINGS_BUCKET" >/dev/null 2>&1; then
+# Only empty and delete the bucket if this account owns it.
+if aws s3api head-bucket --bucket "$FILINGS_BUCKET" --expected-bucket-owner "$ACCOUNT_ID" >/dev/null 2>&1; then
   aws s3 rm "s3://${FILINGS_BUCKET}" --recursive --quiet
-  aws s3api delete-bucket --bucket "$FILINGS_BUCKET" && echo "deleted filings bucket"
+  aws s3api delete-bucket --bucket "$FILINGS_BUCKET" --expected-bucket-owner "$ACCOUNT_ID" && echo "deleted filings bucket"
 fi
 if aws iam get-role --role-name "$KB_ROLE_NAME" >/dev/null 2>&1; then
   aws iam delete-role-policy --role-name "$KB_ROLE_NAME" --policy-name "${KB_ROLE_NAME}-s3-read" || true

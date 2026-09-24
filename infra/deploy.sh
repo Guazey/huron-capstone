@@ -151,13 +151,18 @@ echo "  $MEMORY_ID"
 
 # ---------------------------------------------------------------- knowledge base
 step "3c/6 SEC filings: S3 bucket + Bedrock Managed Knowledge Base"
-if ! aws s3api head-bucket --bucket "$FILINGS_BUCKET" >/dev/null 2>&1; then
-  aws s3api create-bucket --bucket "$FILINGS_BUCKET" \
-    --create-bucket-configuration "LocationConstraint=${REGION}" >/dev/null
+# The name is predictable, so only ever use a bucket this account owns: a
+# same-named bucket elsewhere fails here instead of becoming the KB's source.
+OWNED=(--expected-bucket-owner "$ACCOUNT_ID")
+if ! aws s3api head-bucket --bucket "$FILINGS_BUCKET" "${OWNED[@]}" >/dev/null 2>&1; then
+  # us-east-1 rejects an explicit LocationConstraint.
+  LOCATION=()
+  [[ "$REGION" == "us-east-1" ]] || LOCATION=(--create-bucket-configuration "LocationConstraint=${REGION}")
+  aws s3api create-bucket --bucket "$FILINGS_BUCKET" ${LOCATION[@]+"${LOCATION[@]}"} >/dev/null
 fi
-aws s3api put-public-access-block --bucket "$FILINGS_BUCKET" --public-access-block-configuration \
+aws s3api put-public-access-block --bucket "$FILINGS_BUCKET" "${OWNED[@]}" --public-access-block-configuration \
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-aws s3api put-bucket-encryption --bucket "$FILINGS_BUCKET" --server-side-encryption-configuration \
+aws s3api put-bucket-encryption --bucket "$FILINGS_BUCKET" "${OWNED[@]}" --server-side-encryption-configuration \
   '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
 # The KB's connector role: read this bucket, nothing else (managed KBs need
