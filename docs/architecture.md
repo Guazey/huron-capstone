@@ -43,7 +43,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | ARM64 container + runtime + Cognito | `Dockerfile`, `infra/deploy.sh`, `invoke.sh`, `teardown.sh` | done (slice 3): deployed, READY, rejects calls without a valid token |
 | Side panel extension | `extension/`, `infra/login_setup.sh` | done (slice 4): built; Cognito hosted login + PKCE |
 | SEC filings RAG: `sec_edgar.py` → S3 → Bedrock Managed Knowledge Base; `search_sec_filings` tool | `sec_edgar.py`, `knowledge.py`, `infra/deploy.sh` | done ([ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md)) |
-| Desktop app: the same UI in an always-on-top menu bar window; system-browser sign-in with a loopback redirect | `desktop/`, `extension/src/platform.ts`, `infra/login_setup.sh` | built, Cognito callback registered ([ADR-0004](decisions/0004-tauri-desktop-app.md)); sign-in not yet tested end to end |
+| Desktop app: the same UI in an always-on-top menu bar window; system-browser sign-in with a loopback redirect | `desktop/`, `extension/src/platform.ts`, `infra/login_setup.sh` | done: built, signed in and answered end to end ([ADR-0004](decisions/0004-tauri-desktop-app.md)) |
 | Multi-turn memory (AgentCore Memory, keyed by session + Cognito user) | `app.py`, `graph.py`, `infra/deploy.sh` | done; page ticker detection still to do |
 
 ## Request flow
