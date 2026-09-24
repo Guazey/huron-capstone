@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Wire Cognito's hosted login to the Chrome extension, then write the
-# extension's build config. Safe to rerun; deploy.sh calls it at the end.
+# Wire Cognito's hosted login to the Chrome extension and the desktop app,
+# then write their build config. Safe to rerun; deploy.sh calls it at the end.
 #
 #   1. a Cognito domain for the hosted login page
-#   2. the app client allows the OAuth code flow back to the extension
-#   3. extension/.env.local (gitignored): region, runtime ARN, client, domain
+#   2. the app client allows the OAuth code flow back to both apps
+#   3. extension/.env.local and desktop/.env.local (gitignored): region,
+#      runtime ARN, client, domain
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source infra/config.sh
@@ -20,6 +21,9 @@ print(digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop")))
 EOF
 )
 REDIRECT_URL="https://${EXTENSION_ID}.chromiumapp.org/"
+# The desktop app catches the redirect on a loopback listener; the port must
+# match LOGIN_PORT in desktop/src/tauriPlatform.ts.
+DESKTOP_REDIRECT_URL="http://localhost:47813/callback"
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -36,7 +40,7 @@ fi
 LOGIN_HOST="https://${DOMAIN}.auth.${REGION}.amazoncognito.com"
 echo "  $LOGIN_HOST"
 
-step "2/3 app client: code flow + PKCE back to the extension"
+step "2/3 app client: code flow + PKCE back to the extension and desktop app"
 # update-user-pool-client resets anything not passed, so restate every setting.
 aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$CLIENT_ID" \
   --client-name "$NAME" \
@@ -45,16 +49,20 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
   --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
   --prevent-user-existence-errors ENABLED --enable-token-revocation \
   --supported-identity-providers COGNITO \
-  --callback-urls "$REDIRECT_URL" --logout-urls "$REDIRECT_URL" \
+  --callback-urls "$REDIRECT_URL" "$DESKTOP_REDIRECT_URL" \
+  --logout-urls "$REDIRECT_URL" "$DESKTOP_REDIRECT_URL" \
   --allowed-o-auth-flows code --allowed-o-auth-scopes openid email \
   --allowed-o-auth-flows-user-pool-client >/dev/null
-echo "  redirect: $REDIRECT_URL"
+echo "  redirects: $REDIRECT_URL $DESKTOP_REDIRECT_URL"
 
-step "3/3 extension/.env.local"
-cat > extension/.env.local <<EOF
+step "3/3 extension/.env.local and desktop/.env.local"
+for app in extension desktop; do
+  cat > "$app/.env.local" <<EOF
 VITE_REGION=${REGION}
 VITE_RUNTIME_ARN=${RUNTIME_ARN}
 VITE_CLIENT_ID=${CLIENT_ID}
 VITE_LOGIN_HOST=${LOGIN_HOST}
 EOF
+done
 echo "  written. Build with: cd extension && npm install && npm run build"
+echo "                   or: cd desktop && npm install && npm run build"

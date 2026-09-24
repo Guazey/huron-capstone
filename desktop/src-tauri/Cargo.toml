@@ -1,0 +1,17 @@
+[package]
+name = "market-sidebar"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "market_sidebar_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"

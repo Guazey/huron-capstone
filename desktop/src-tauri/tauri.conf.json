@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Market Sidebar",
+  "version": "0.1.0",
+  "identifier": "com.guazey.market-sidebar",
+  "build": {
+    "beforeDevCommand": "npm run web:dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run web:build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Market Sidebar",
+        "width": 400,
+        "height": 800,
+        "minWidth": 320,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; connect-src ipc: http://ipc.localhost https://bedrock-agentcore.us-west-2.amazonaws.com https://*.auth.us-west-2.amazoncognito.com",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; connect-src ipc: http://ipc.localhost ws://localhost:1420 https://bedrock-agentcore.us-west-2.amazonaws.com https://*.auth.us-west-2.amazoncognito.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "msi", "nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+  }
+}

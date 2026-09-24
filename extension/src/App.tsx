@@ -1,8 +1,9 @@
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
 import { AuthError, askAgent, newSessionId } from "./agent";
 import { accessToken, currentSession, signIn, signOut } from "./auth";
+import { platform } from "./platform";
 
 type Message = {
   role: "user" | "assistant";
@@ -40,6 +41,7 @@ type AuthState = { status: "loading" } | { status: "signedOut" } | { status: "si
 export default function App() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [authError, setAuthError] = useState<string>();
+  const [signingIn, setSigningIn] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,10 +56,9 @@ export default function App() {
   }, []);
 
   // Keep the chat (and its session ID, which is the agent's memory key) when
-  // the panel is closed and reopened. Cleared when Chrome closes.
+  // the panel is closed and reopened. Cleared when the host quits.
   useEffect(() => {
-    chrome.storage.session.get(CHAT_KEY).then((stored) => {
-      const chat = stored[CHAT_KEY] as { sessionId: string; messages: Message[] } | undefined;
+    platform().storage.get<{ sessionId: string; messages: Message[] }>(CHAT_KEY).then((chat) => {
       if (chat) {
         setSessionId(chat.sessionId);
         setMessages(chat.messages.map((m) => ({ ...m, streaming: false })));
@@ -66,7 +67,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!busy) void chrome.storage.session.set({ [CHAT_KEY]: { sessionId, messages } });
+    if (!busy) void platform().storage.set(CHAT_KEY, { sessionId, messages });
   }, [messages, sessionId, busy]);
 
   useEffect(() => {
@@ -79,11 +80,14 @@ export default function App() {
 
   async function handleSignIn() {
     setAuthError(undefined);
+    setSigningIn(true);
     try {
       const session = await signIn();
       setAuth({ status: "signedIn", email: session.email });
     } catch (e) {
       setAuthError((e as Error).message);
+    } finally {
+      setSigningIn(false);
     }
   }
 
@@ -154,6 +158,8 @@ export default function App() {
     void ask(input);
   }
 
+  const hide = platform().hide;
+
   if (auth.status === "loading") return <main className="panel" aria-busy="true" />;
 
   if (auth.status === "signedOut") {
@@ -161,8 +167,8 @@ export default function App() {
       <main className="panel center">
         <h1>Market Sidebar</h1>
         <p className="muted">Live quotes and price history while you trade.</p>
-        <button className="primary" onClick={handleSignIn}>
-          Sign in
+        <button className="primary" onClick={handleSignIn} disabled={signingIn}>
+          {signingIn ? "Finish signing in…" : "Sign in"}
         </button>
         {authError && <p className="error" role="alert">{authError}</p>}
       </main>
@@ -176,6 +182,7 @@ export default function App() {
         <div className="header-actions">
           <button onClick={newChat} disabled={messages.length === 0}>New chat</button>
           <button onClick={handleSignOut} title={auth.email}>Sign out</button>
+          {hide && <button onClick={hide} title="Hide">×</button>}
         </div>
       </header>
 
@@ -228,6 +235,14 @@ export function isVerifiedLink(href: string | undefined, sources: string[] | und
   return !!href && href.startsWith("https://") && !!sources?.includes(href);
 }
 
+/** Hosts without a browser (the desktop app) open links in the default one. */
+function openOutside(e: MouseEvent<HTMLAnchorElement>) {
+  const open = platform().openExternal;
+  if (!open) return;
+  e.preventDefault();
+  open(e.currentTarget.href);
+}
+
 /** The model's answer as markdown, with the two protections against injected output. */
 export function AnswerText({ text, sources }: { text: string; sources?: string[] }) {
   return (
@@ -240,7 +255,9 @@ export function AnswerText({ text, sources }: { text: string; sources?: string[]
         // Anything else the model shaped like a link renders as text.
         a: ({ href, children }) =>
           isVerifiedLink(href, sources) ? (
-            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+            <a href={href} target="_blank" rel="noopener noreferrer" onClick={openOutside}>
+              {children}
+            </a>
           ) : (
             <span>{children}</span>
           ),

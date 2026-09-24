@@ -8,6 +8,11 @@ infra/outputs.env
 extension/node_modules/
 extension/dist/
 extension/.env.local
+desktop/node_modules/
+desktop/dist/
+desktop/.env.local
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
 *.code-workspace
 # rendered with account IDs by infra/render_policies.sh
 infra/deployer-policy.json

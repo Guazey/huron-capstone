@@ -1,8 +1,9 @@
 // Sign-in with Cognito's hosted login page, OAuth authorization code + PKCE.
 // No client secret exists: this is a public client living in a browser.
-// Tokens live in chrome.storage.session: memory only, gone when Chrome closes.
+// Tokens live in the platform's memory-only storage, gone when the host quits.
 
 import { config } from "./config";
+import { platform } from "./platform";
 
 const STORAGE_KEY = "auth";
 const REFRESH_MARGIN_MS = 60_000;
@@ -75,7 +76,7 @@ export function emailFromIdToken(idToken?: string): string | undefined {
   }
 }
 
-// ---------------------------------------------------------------- chrome glue
+// ---------------------------------------------------------------- platform glue
 
 async function tokenRequest(body: Record<string, string>): Promise<Session> {
   const response = await fetch(`${config.loginHost}/oauth2/token`, {
@@ -94,30 +95,27 @@ async function tokenRequest(body: Record<string, string>): Promise<Session> {
 }
 
 async function save(session: Session | null): Promise<void> {
-  if (session) await chrome.storage.session.set({ [STORAGE_KEY]: session });
-  else await chrome.storage.session.remove(STORAGE_KEY);
+  if (session) await platform().storage.set(STORAGE_KEY, session);
+  else await platform().storage.remove(STORAGE_KEY);
 }
 
 export async function currentSession(): Promise<Session | null> {
-  const stored = (await chrome.storage.session.get(STORAGE_KEY))[STORAGE_KEY] as Session | undefined;
-  return stored ?? null;
+  return (await platform().storage.get<Session>(STORAGE_KEY)) ?? null;
 }
 
 export async function signIn(): Promise<Session> {
-  const redirectUri = chrome.identity.getRedirectURL();
+  const redirectUri = platform().redirectUri();
   const verifier = randomString();
   const state = randomString(16);
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: authorizeUrl({
+  const redirect = await platform().launchAuthFlow(
+    authorizeUrl({
       loginHost: config.loginHost,
       clientId: config.clientId,
       redirectUri,
       state,
       challenge: await pkceChallenge(verifier),
     }),
-    interactive: true,
-  });
-  if (!redirect) throw new Error("Sign-in was cancelled.");
+  );
   const session = await tokenRequest({
     grant_type: "authorization_code",
     code: codeFromRedirect(redirect, state),

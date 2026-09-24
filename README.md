@@ -62,7 +62,8 @@ Each Python file does one job, and most can be run on their own
 | `main.py` | Asks one question from the terminal and prints every step |
 | `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance |
 | `tests/` | Unit tests with the network and model stubbed; run in CI |
-| `extension/` | The Chrome side panel |
+| `extension/` | The Chrome side panel; its `src/` is the shared UI, with host specifics behind `platform.ts` |
+| `desktop/` | The same UI as a Tauri menu bar app (macOS/Windows): always on top, docked right, toggled with Alt+Shift+M; signs in through the system browser and a loopback redirect |
 | `infra/` | `deploy.sh`, `create_user.sh`, `invoke.sh`, `teardown.sh`, and the deployer IAM policy |
 
 ## Running it
@@ -86,6 +87,7 @@ infra/create_user.sh                      # your sidebar login
 set -a; source .env; source infra/outputs.env; set +a
 python sec_edgar.py                       # load SEC filings into the Knowledge Base
 cd extension && npm install && npm run build   # then chrome://extensions -> Load unpacked -> extension/dist
+cd desktop && npm install && npm run build     # needs Rust; the app lands in desktop/src-tauri/target/release/bundle
 infra/teardown.sh                         # delete it all
 ```
 
