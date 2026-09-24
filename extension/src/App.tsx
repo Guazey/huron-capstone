@@ -85,7 +85,7 @@ export default function App() {
       const session = await signIn();
       setAuth({ status: "signedIn", email: session.email });
     } catch (e) {
-      setAuthError((e as Error).message);
+      setAuthError(e instanceof Error ? e.message : String(e));
     } finally {
       setSigningIn(false);
     }
@@ -158,7 +158,7 @@ export default function App() {
     void ask(input);
   }
 
-  const hide = platform().hide;
+  const { hide, cancelAuthFlow } = platform();
 
   if (auth.status === "loading") return <main className="panel" aria-busy="true" />;
 
@@ -170,6 +170,9 @@ export default function App() {
         <button className="primary" onClick={handleSignIn} disabled={signingIn}>
           {signingIn ? "Finish signing in…" : "Sign in"}
         </button>
+        {signingIn && cancelAuthFlow && (
+          <button className="link" onClick={cancelAuthFlow}>Cancel</button>
+        )}
         {authError && <p className="error" role="alert">{authError}</p>}
       </main>
     );

@@ -91,6 +91,23 @@ cd desktop && npm install && npm run build     # needs Rust; the app lands in de
 infra/teardown.sh                         # delete it all
 ```
 
+### Desktop auto-update
+
+Installed copies check GitHub Releases (the `desktop-latest` feed) at launch
+and every 6 hours, download a newer build in the background, and offer
+"Restart to update" in the menu bar.
+Each build is signed with a key that only lives on the releasing machine; the
+app refuses any build that doesn't match the public key in `tauri.conf.json`.
+
+```
+npx tauri signer generate -w ~/.tauri/market-sidebar.key   # once, from desktop/; set a password
+gh auth login                                              # once
+desktop/release.sh 0.1.1                                   # bump, sign, build (universal macOS), tag, publish
+```
+
+Keep `~/.tauri/market-sidebar.key` and its password out of the repo and backed
+up: losing the key means installed copies can't update to anything newer.
+
 ## Known limits
 
 - yfinance is unofficial: it can be rate-limited, and some quotes are delayed.

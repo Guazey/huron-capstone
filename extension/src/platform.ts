@@ -12,6 +12,8 @@ export type Platform = {
   redirectUri(): string;
   /** Show Cognito's login page and resolve with the URL it redirected to. */
   launchAuthFlow(url: string): Promise<string>;
+  /** Give up on a sign-in in progress. Unset means closing the login window cancels it. */
+  cancelAuthFlow?(): void;
   /** Open a link outside the app. Unset means a plain target="_blank" works. */
   openExternal?(url: string): void;
   /** Hide the window. Unset means the host has its own close control. */

@@ -42,8 +42,20 @@ finishes the same PKCE exchange the extension uses.
   between them. There's no `chrome.identity`, so sign-in needs its own loopback
   listener and a second Cognito callback URL (`infra/login_setup.sh`).
 - Loopback redirect: the listener binds 127.0.0.1/::1 only, answers one
-  `/callback` request, and times out after 5 minutes. `state` and PKCE are
+  `/callback` request, and gives up after 5 minutes or when the user clicks
+  Cancel. If another process holds the port on either address, sign-in stops
+  rather than risk the browser handing it the redirect. `state` and PKCE are
   checked in the shared `auth.ts`, so a local process that reaches the port
   can't use the code without the verifier.
-- Follow-ups: code signing and notarization for distribution; auto-update
-  (Tauri updater plugin); fall back to another port if 47813 is taken.
+- Auto-update (added 2026-09-24): the Tauri updater plugin reads `latest.json`
+  from a fixed `desktop-latest` GitHub Release (so another release marked
+  "Latest" can't break the feed), downloads in the background, and installs
+  only when the user picks "Restart to update", since a restart clears the
+  memory-only chat and sign-in. Builds are signed with a minisign key kept
+  off the repo (`~/.tauri/market-sidebar.key`); the app checks each download
+  against the public key in `tauri.conf.json`. This runs in Rust, so the
+  webview gets no new permissions. `desktop/release.sh` publishes one
+  universal macOS build; Windows installs report "No updates for this
+  platform" until a Windows build is published.
+- Follow-ups: Apple code signing and notarization for distribution; Windows
+  release builds (CI); fall back to another port if 47813 is taken.

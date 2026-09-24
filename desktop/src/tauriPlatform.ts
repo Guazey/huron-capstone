@@ -20,7 +20,13 @@ export const tauriPlatform: Platform = {
     remove: async (key) => void memory.delete(key),
   },
   redirectUri: () => `http://localhost:${LOGIN_PORT}/callback`,
-  launchAuthFlow: (url) => invoke<string>("sign_in", { url, port: LOGIN_PORT }),
-  openExternal: (url) => void openUrl(url),
+  // Rust errors arrive as plain strings; the UI shows Error messages.
+  launchAuthFlow: (url) =>
+    invoke<string>("sign_in", { url, port: LOGIN_PORT }).catch((e: unknown) => {
+      throw new Error(String(e));
+    }),
+  cancelAuthFlow: () => void invoke("cancel_sign_in"),
+  openExternal: (url) =>
+    void openUrl(url).catch((e: unknown) => console.error("couldn't open link", e)),
   hide: () => void getCurrentWindow().hide(),
 };

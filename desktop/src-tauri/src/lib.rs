@@ -3,11 +3,12 @@
 // (Windows: system tray) and toggles with a global hotkey.
 
 mod login;
+mod update;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
-use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 
 const HOTKEY: &str = "Alt+Shift+M";
@@ -25,6 +26,11 @@ async fn sign_in(app: AppHandle, url: String, port: u16) -> Result<String, Strin
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn cancel_sign_in() {
+    login::cancel();
 }
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
@@ -57,32 +63,41 @@ fn dock_right(window: &WebviewWindow) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts([HOTKEY])
-                .expect("valid hotkey")
-                .with_handler(|app, _, event| {
-                    if event.state == ShortcutState::Pressed {
-                        toggle(app);
-                    }
-                })
-                .build(),
-        )
-        .invoke_handler(tauri::generate_handler![sign_in])
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![sign_in, cancel_sign_in])
         .setup(|app| {
             // A menu bar utility: no Dock icon, no app switcher entry.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            let toggle_item = MenuItem::with_id(app, "toggle", format!("Show/Hide ({HOTKEY})"), true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Market Sidebar", true, None::<&str>)?;
+            // Another app may already own the hotkey; the tray still works.
+            let hotkey = app.global_shortcut().on_shortcut(HOTKEY, |app, _, event| {
+                if event.state == ShortcutState::Pressed {
+                    toggle(app);
+                }
+            });
+            let toggle_label = match hotkey {
+                Ok(()) => format!("Show/Hide ({HOTKEY})"),
+                Err(e) => {
+                    eprintln!("couldn't register {HOTKEY}: {e}");
+                    "Show/Hide".into()
+                }
+            };
+            let toggle_item = MenuItem::with_id(app, "toggle", toggle_label, true, None::<&str>)?;
+            let update_item =
+                MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
+            let quit_item =
+                MenuItem::with_id(app, "quit", "Quit Market Sidebar", true, None::<&str>)?;
+            app.manage(update::Updates::new(update_item.clone()));
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().expect("bundle icon").clone())
                 .tooltip("Market Sidebar")
-                .menu(&Menu::with_items(app, &[&toggle_item, &quit_item])?)
+                .menu(&Menu::with_items(app, &[&toggle_item, &update_item, &quit_item])?)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle(app),
+                    "update" => update::clicked(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -103,6 +118,7 @@ pub fn run() {
                 dock_right(&window)?;
                 window.show()?;
             }
+            update::start(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

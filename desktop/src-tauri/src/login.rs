@@ -7,6 +7,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -16,6 +17,13 @@ const DONE_PAGE: &str = "<!doctype html><title>Market Sidebar</title>\
 <p style=\"font-family:system-ui;margin:3em;text-align:center\">\
 Signed in. You can close this tab and go back to Market Sidebar.</p>";
 
+static CANCELLED: AtomicBool = AtomicBool::new(false);
+
+/// Stop a sign-in that is waiting for its redirect (the user gave up on it).
+pub fn cancel() {
+    CANCELLED.store(true, Ordering::SeqCst);
+}
+
 /// Bind the callback port, run `open_login`, and return the redirect URL.
 pub fn wait_for_redirect(
     port: u16,
@@ -23,18 +31,32 @@ pub fn wait_for_redirect(
 ) -> Result<String, String> {
     // Loopback only: nothing off this machine can reach the listener. Browsers
     // may resolve "localhost" to either address, so take IPv6 when available.
-    let mut listeners = vec![TcpListener::bind((Ipv4Addr::LOCALHOST, port)).map_err(|e| {
-        format!("Couldn't listen on port {port} for the sign-in redirect ({e}). Is another sign-in open?")
-    })?];
-    listeners.extend(TcpListener::bind((Ipv6Addr::LOCALHOST, port)).ok());
+    let bind_error = |e| {
+        format!(
+            "Couldn't listen on port {port} for the sign-in redirect ({e}). \
+             Is another sign-in open?"
+        )
+    };
+    let mut listeners = vec![TcpListener::bind((Ipv4Addr::LOCALHOST, port)).map_err(bind_error)?];
+    // Skip IPv6 only on machines without it. If something else holds [::1]
+    // on this port, the browser could hand it the redirect, so stop instead.
+    match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
+        Ok(listener) => listeners.push(listener),
+        Err(e) if e.kind() == ErrorKind::AddrInUse => return Err(bind_error(e)),
+        Err(_) => {}
+    }
     for listener in &listeners {
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     }
 
+    CANCELLED.store(false, Ordering::SeqCst);
     open_login()?;
 
     let deadline = Instant::now() + TIMEOUT;
     while Instant::now() < deadline {
+        if CANCELLED.load(Ordering::SeqCst) {
+            return Err("Sign-in was cancelled.".into());
+        }
         for listener in &listeners {
             match listener.accept() {
                 Ok((stream, _)) => {
@@ -42,7 +64,15 @@ pub fn wait_for_redirect(
                         return Ok(format!("http://localhost:{port}{target}"));
                     }
                 }
-                Err(e) if e.kind() == ErrorKind::WouldBlock => {}
+                // Nothing waiting yet, or a connection the browser dropped
+                // before we accepted it.
+                Err(e) if matches!(
+                    e.kind(),
+                    ErrorKind::WouldBlock
+                        | ErrorKind::ConnectionAborted
+                        | ErrorKind::ConnectionReset
+                        | ErrorKind::Interrupted
+                ) => {}
                 Err(e) => return Err(e.to_string()),
             }
         }
@@ -100,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn returns_the_redirect_and_ignores_other_requests() {
+    fn returns_the_redirect_ignores_other_requests_and_cancels() {
         let port = 47899;
         let url = wait_for_redirect(port, || {
             std::thread::spawn(move || {
@@ -115,5 +145,14 @@ mod tests {
         })
         .unwrap();
         assert_eq!(url, "http://localhost:47899/callback?code=abc&state=xyz");
+
+        // Same test, not a separate one: CANCELLED is shared, and cargo runs
+        // tests in parallel.
+        let err = wait_for_redirect(port, || {
+            cancel();
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(err, "Sign-in was cancelled.");
     }
 }
