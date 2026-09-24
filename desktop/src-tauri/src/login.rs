@@ -5,12 +5,15 @@
 // browser, and wait for Cognito to redirect back to /callback. The frontend
 // checks `state` and exchanges the code with PKCE, so this only carries the URL.
 
-use std::io::{ErrorKind, Read, Write};
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, Ipv6Addr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+/// Cognito only redirects to exact registered URLs, so the fallbacks are a
+/// fixed list. infra/login_setup.sh registers the same ports.
+pub const PORTS: [u16; 3] = [47813, 47814, 47815];
 const CALLBACK_PATH: &str = "/callback";
 const TIMEOUT: Duration = Duration::from_secs(300);
 const DONE_PAGE: &str = "<!doctype html><title>Market Sidebar</title>\
@@ -24,61 +27,85 @@ pub fn cancel() {
     CANCELLED.store(true, Ordering::SeqCst);
 }
 
-/// Bind the callback port, run `open_login`, and return the redirect URL.
-pub fn wait_for_redirect(
+/// The redirect listener for one sign-in, bound before the login URL is
+/// built so that URL can name the port that was actually free.
+pub struct Listener {
     port: u16,
-    open_login: impl FnOnce() -> Result<(), String>,
-) -> Result<String, String> {
-    // Loopback only: nothing off this machine can reach the listener. Browsers
-    // may resolve "localhost" to either address, so take IPv6 when available.
-    let bind_error = |e| {
-        format!(
-            "Couldn't listen on port {port} for the sign-in redirect ({e}). \
-             Is another sign-in open?"
-        )
-    };
-    let mut listeners = vec![TcpListener::bind((Ipv4Addr::LOCALHOST, port)).map_err(bind_error)?];
-    // Skip IPv6 only on machines without it. If something else holds [::1]
-    // on this port, the browser could hand it the redirect, so stop instead.
-    match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
-        Ok(listener) => listeners.push(listener),
-        Err(e) if e.kind() == ErrorKind::AddrInUse => return Err(bind_error(e)),
-        Err(_) => {}
-    }
-    for listener in &listeners {
-        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
-    }
+    sockets: Vec<TcpListener>,
+}
 
-    CANCELLED.store(false, Ordering::SeqCst);
-    open_login()?;
-
-    let deadline = Instant::now() + TIMEOUT;
-    while Instant::now() < deadline {
-        if CANCELLED.load(Ordering::SeqCst) {
-            return Err("Sign-in was cancelled.".into());
-        }
-        for listener in &listeners {
-            match listener.accept() {
-                Ok((stream, _)) => {
-                    if let Some(target) = serve(stream) {
-                        return Ok(format!("http://localhost:{port}{target}"));
-                    }
-                }
-                // Nothing waiting yet, or a connection the browser dropped
-                // before we accepted it.
-                Err(e) if matches!(
-                    e.kind(),
-                    ErrorKind::WouldBlock
-                        | ErrorKind::ConnectionAborted
-                        | ErrorKind::ConnectionReset
-                        | ErrorKind::Interrupted
-                ) => {}
-                Err(e) => return Err(e.to_string()),
+impl Listener {
+    /// Listen on the first of `ports` that is free.
+    pub fn bind(ports: &[u16]) -> Result<Self, String> {
+        let mut last_error = None;
+        for &port in ports {
+            match bind_loopback(port) {
+                Ok(sockets) => return Ok(Self { port, sockets }),
+                Err(e) => last_error = Some(e),
             }
         }
-        sleep(Duration::from_millis(100));
+        Err(format!(
+            "Couldn't listen for the sign-in redirect on ports {ports:?} ({}). \
+             Another app may be using them.",
+            last_error.map_or_else(|| "none given".into(), |e| e.to_string())
+        ))
     }
-    Err("Sign-in timed out. Try again.".into())
+
+    /// What to send Cognito as redirect_uri.
+    pub fn redirect_uri(&self) -> String {
+        format!("http://localhost:{}{CALLBACK_PATH}", self.port)
+    }
+
+    /// Run `open_login`, then return the URL Cognito redirected to.
+    pub fn wait(self, open_login: impl FnOnce() -> Result<(), String>) -> Result<String, String> {
+        CANCELLED.store(false, Ordering::SeqCst);
+        open_login()?;
+
+        let deadline = Instant::now() + TIMEOUT;
+        while Instant::now() < deadline {
+            if CANCELLED.load(Ordering::SeqCst) {
+                return Err("Sign-in was cancelled.".into());
+            }
+            for socket in &self.sockets {
+                match socket.accept() {
+                    Ok((stream, _)) => {
+                        if let Some(target) = serve(stream) {
+                            return Ok(format!("http://localhost:{}{target}", self.port));
+                        }
+                    }
+                    // Nothing waiting yet, or a connection the browser dropped
+                    // before we accepted it.
+                    Err(e) if matches!(
+                        e.kind(),
+                        ErrorKind::WouldBlock
+                            | ErrorKind::ConnectionAborted
+                            | ErrorKind::ConnectionReset
+                            | ErrorKind::Interrupted
+                    ) => {}
+                    Err(e) => return Err(e.to_string()),
+                }
+            }
+            sleep(Duration::from_millis(100));
+        }
+        Err("Sign-in timed out. Try again.".into())
+    }
+}
+
+/// Loopback only: nothing off this machine can reach the listener. Browsers
+/// may resolve "localhost" to either address, so take IPv6 when available.
+fn bind_loopback(port: u16) -> io::Result<Vec<TcpListener>> {
+    let mut sockets = vec![TcpListener::bind((Ipv4Addr::LOCALHOST, port))?];
+    // Skip IPv6 only on machines without it. If something else holds [::1]
+    // on this port, the browser could hand it the redirect, so move on.
+    match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
+        Ok(socket) => sockets.push(socket),
+        Err(e) if e.kind() == ErrorKind::AddrInUse => return Err(e),
+        Err(_) => {}
+    }
+    for socket in &sockets {
+        socket.set_nonblocking(true)?;
+    }
+    Ok(sockets)
 }
 
 /// Answer one request. Returns its target if it was the callback.
@@ -130,29 +157,41 @@ mod tests {
     }
 
     #[test]
+    fn falls_back_to_the_next_free_port() {
+        let _taken = TcpListener::bind((Ipv4Addr::LOCALHOST, 47897)).unwrap();
+        let listener = Listener::bind(&[47897, 47898]).unwrap();
+        assert_eq!(listener.redirect_uri(), "http://localhost:47898/callback");
+        assert!(Listener::bind(&[47897]).err().unwrap().contains("[47897]"));
+    }
+
+    #[test]
     fn returns_the_redirect_ignores_other_requests_and_cancels() {
         let port = 47899;
-        let url = wait_for_redirect(port, || {
-            std::thread::spawn(move || {
-                for path in ["/favicon.ico", "/callback?code=abc&state=xyz"] {
-                    let mut s = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
-                    write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
-                    let mut reply = String::new();
-                    s.read_to_string(&mut reply).unwrap();
-                }
-            });
-            Ok(())
-        })
-        .unwrap();
+        let url = Listener::bind(&[port])
+            .unwrap()
+            .wait(|| {
+                std::thread::spawn(move || {
+                    for path in ["/favicon.ico", "/callback?code=abc&state=xyz"] {
+                        let mut s = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
+                        write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+                        let mut reply = String::new();
+                        s.read_to_string(&mut reply).unwrap();
+                    }
+                });
+                Ok(())
+            })
+            .unwrap();
         assert_eq!(url, "http://localhost:47899/callback?code=abc&state=xyz");
 
         // Same test, not a separate one: CANCELLED is shared, and cargo runs
         // tests in parallel.
-        let err = wait_for_redirect(port, || {
-            cancel();
-            Ok(())
-        })
-        .unwrap_err();
+        let err = Listener::bind(&[port])
+            .unwrap()
+            .wait(|| {
+                cancel();
+                Ok(())
+            })
+            .unwrap_err();
         assert_eq!(err, "Sign-in was cancelled.");
     }
 }

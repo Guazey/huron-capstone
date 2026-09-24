@@ -8,8 +8,11 @@ export type Platform = {
     set(key: string, value: unknown): Promise<void>;
     remove(key: string): Promise<void>;
   };
-  /** Where Cognito sends the browser back to after sign-in. */
-  redirectUri(): string;
+  /**
+   * Where Cognito sends the browser back to after sign-in. Called once per
+   * sign-in, right before launchAuthFlow: the desktop app starts listening here.
+   */
+  redirectUri(): Promise<string>;
   /** Show Cognito's login page and resolve with the URL it redirected to. */
   launchAuthFlow(url: string): Promise<string>;
   /** Give up on a sign-in in progress. Unset means closing the login window cancels it. */

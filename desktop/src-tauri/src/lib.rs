@@ -5,24 +5,41 @@
 mod login;
 mod update;
 
+use std::sync::Mutex;
+
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 
 const HOTKEY: &str = "Alt+Shift+M";
 const WIDTH: f64 = 400.0;
 
+/// The listener between start_sign_in and sign_in.
+#[derive(Default)]
+struct PendingSignIn(Mutex<Option<login::Listener>>);
+
+/// Listen for the redirect and return the redirect_uri to put in the login URL.
 #[tauri::command]
-async fn sign_in(app: AppHandle, url: String, port: u16) -> Result<String, String> {
+fn start_sign_in(pending: State<PendingSignIn>) -> Result<String, String> {
+    let mut pending = pending.0.lock().unwrap();
+    // Free the ports of a sign-in that was started and never finished.
+    pending.take();
+    let listener = login::Listener::bind(&login::PORTS)?;
+    let redirect_uri = listener.redirect_uri();
+    *pending = Some(listener);
+    Ok(redirect_uri)
+}
+
+#[tauri::command]
+async fn sign_in(app: AppHandle, pending: State<'_, PendingSignIn>, url: String) -> Result<String, String> {
     if !url.starts_with("https://") {
         return Err("Refusing to open a non-HTTPS login page.".into());
     }
+    let listener = pending.0.lock().unwrap().take().ok_or("Sign-in wasn't started.")?;
     tauri::async_runtime::spawn_blocking(move || {
-        login::wait_for_redirect(port, || {
-            app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
-        })
+        listener.wait(|| app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string()))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -65,7 +82,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![sign_in, cancel_sign_in])
+        .manage(PendingSignIn::default())
+        .invoke_handler(tauri::generate_handler![start_sign_in, sign_in, cancel_sign_in])
         .setup(|app| {
             // A menu bar utility: no Dock icon, no app switcher entry.
             #[cfg(target_os = "macos")]

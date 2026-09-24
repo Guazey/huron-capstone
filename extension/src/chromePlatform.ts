@@ -6,7 +6,7 @@ export const chromePlatform: Platform = {
     set: (key, value) => chrome.storage.session.set({ [key]: value }),
     remove: (key) => chrome.storage.session.remove(key),
   },
-  redirectUri: () => chrome.identity.getRedirectURL(),
+  redirectUri: async () => chrome.identity.getRedirectURL(),
   async launchAuthFlow(url) {
     const redirect = await chrome.identity.launchWebAuthFlow({ url, interactive: true });
     if (!redirect) throw new Error("Sign-in was cancelled.");

@@ -20,7 +20,8 @@ host-specific code sits behind `platform.ts` (storage, sign-in, opening links,
 hiding the window), with `chromePlatform.ts` for the extension and
 `desktop/src/tauriPlatform.ts` for the app. Sign-in opens Cognito's hosted
 login in the system browser and catches the redirect on a loopback listener
-(`desktop/src-tauri/src/login.rs`, `http://localhost:47813/callback`), then
+(`desktop/src-tauri/src/login.rs`, `http://localhost:47813/callback`, falling
+back to 47814 and 47815 if it's taken; all three are registered), then
 finishes the same PKCE exchange the extension uses.
 
 ## Alternatives considered
@@ -43,8 +44,8 @@ finishes the same PKCE exchange the extension uses.
   listener and a second Cognito callback URL (`infra/login_setup.sh`).
 - Loopback redirect: the listener binds 127.0.0.1/::1 only, answers one
   `/callback` request, and gives up after 5 minutes or when the user clicks
-  Cancel. If another process holds the port on either address, sign-in stops
-  rather than risk the browser handing it the redirect. `state` and PKCE are
+  Cancel. A port another process holds on either address is skipped, so the
+  browser can't hand that process the redirect. `state` and PKCE are
   checked in the shared `auth.ts`, so a local process that reaches the port
   can't use the code without the verifier.
 - Auto-update (added 2026-09-24): the Tauri updater plugin reads `latest.json`
@@ -58,4 +59,4 @@ finishes the same PKCE exchange the extension uses.
   universal macOS build; Windows installs report "No updates for this
   platform" until a Windows build is published.
 - Follow-ups: Apple code signing and notarization for distribution; Windows
-  release builds (CI); fall back to another port if 47813 is taken.
+  release builds (CI).

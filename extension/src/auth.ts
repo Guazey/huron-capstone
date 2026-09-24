@@ -104,7 +104,7 @@ export async function currentSession(): Promise<Session | null> {
 }
 
 export async function signIn(): Promise<Session> {
-  const redirectUri = platform().redirectUri();
+  const redirectUri = await platform().redirectUri();
   const verifier = randomString();
   const state = randomString(16);
   const redirect = await platform().launchAuthFlow(

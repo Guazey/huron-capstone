@@ -21,9 +21,10 @@ print(digest.translate(str.maketrans("0123456789abcdef", "abcdefghijklmnop")))
 EOF
 )
 REDIRECT_URL="https://${EXTENSION_ID}.chromiumapp.org/"
-# The desktop app catches the redirect on a loopback listener; the port must
-# match LOGIN_PORT in desktop/src/tauriPlatform.ts.
-DESKTOP_REDIRECT_URL="http://localhost:47813/callback"
+# The desktop app catches the redirect on a loopback listener, on the first
+# free one of these ports: keep in step with PORTS in desktop/src-tauri/src/login.rs.
+DESKTOP_REDIRECT_URLS=(http://localhost:47813/callback http://localhost:47814/callback
+  http://localhost:47815/callback)
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -49,11 +50,11 @@ aws cognito-idp update-user-pool-client --user-pool-id "$POOL_ID" --client-id "$
   --token-validity-units 'AccessToken=minutes,IdToken=minutes,RefreshToken=days' \
   --prevent-user-existence-errors ENABLED --enable-token-revocation \
   --supported-identity-providers COGNITO \
-  --callback-urls "$REDIRECT_URL" "$DESKTOP_REDIRECT_URL" \
-  --logout-urls "$REDIRECT_URL" "$DESKTOP_REDIRECT_URL" \
+  --callback-urls "$REDIRECT_URL" "${DESKTOP_REDIRECT_URLS[@]}" \
+  --logout-urls "$REDIRECT_URL" "${DESKTOP_REDIRECT_URLS[@]}" \
   --allowed-o-auth-flows code --allowed-o-auth-scopes openid email \
   --allowed-o-auth-flows-user-pool-client >/dev/null
-echo "  redirects: $REDIRECT_URL $DESKTOP_REDIRECT_URL"
+echo "  redirects: $REDIRECT_URL ${DESKTOP_REDIRECT_URLS[*]}"
 
 step "3/3 extension/.env.local and desktop/.env.local"
 for app in extension desktop; do
