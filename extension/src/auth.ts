@@ -168,15 +168,24 @@ export async function signOut(): Promise<void> {
       body: new URLSearchParams({ token: session.refreshToken, client_id: config.clientId }),
     }).catch(() => undefined);
   }
-  // Cognito's hosted page keeps its own sign-in cookie for about an hour.
-  // Unless it's cleared, the next sign-in skips the password and MFA code.
-  const endLoginSession = platform().endLoginSession;
-  if (endLoginSession) {
+}
+
+/**
+ * Cognito's hosted page keeps its own sign-in cookie for about an hour. Unless
+ * it's cleared, the next sign-in skips the password and MFA code. Only for a
+ * sign-out the user asked for: on desktop it briefly opens a browser tab.
+ */
+export async function endLoginSession(): Promise<void> {
+  const end = platform().endLoginSession;
+  if (!end) return;
+  try {
     const url = logoutUrl({
       loginHost: config.loginHost,
       clientId: config.clientId,
       logoutUri: await platform().redirectUri(),
     });
-    await endLoginSession(url).catch(() => undefined);
+    await end(url);
+  } catch {
+    // Best effort, like the token revoke: the cookie expires on its own.
   }
 }

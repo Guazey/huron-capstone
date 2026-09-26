@@ -2,7 +2,7 @@ import { type FormEvent, type MouseEvent, useEffect, useRef, useState } from "re
 import Markdown from "react-markdown";
 
 import { AuthError, askAgent, newSessionId } from "./agent";
-import { accessToken, currentSession, signIn, signOut } from "./auth";
+import { accessToken, currentSession, endLoginSession, signIn, signOut } from "./auth";
 import { platform } from "./platform";
 
 type Message = {
@@ -93,6 +93,9 @@ export default function App() {
 
   async function handleSignOut() {
     await signOut();
+    // Not awaited: on desktop it waits on a browser tab, and the panel
+    // shouldn't hang on that.
+    void endLoginSession();
     newChat();
     setAuth({ status: "signedOut" });
   }

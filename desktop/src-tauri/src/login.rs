@@ -16,9 +16,12 @@ use std::time::{Duration, Instant};
 pub const PORTS: [u16; 3] = [47813, 47814, 47815];
 const CALLBACK_PATH: &str = "/callback";
 const TIMEOUT: Duration = Duration::from_secs(300);
-const DONE_PAGE: &str = "<!doctype html><title>Market Sidebar</title>\
+pub const SIGNED_IN_PAGE: &str = "<!doctype html><title>Market Sidebar</title>\
 <p style=\"font-family:system-ui;margin:3em;text-align:center\">\
 Signed in. You can close this tab and go back to Market Sidebar.</p>";
+pub const SIGNED_OUT_PAGE: &str = "<!doctype html><title>Market Sidebar</title>\
+<p style=\"font-family:system-ui;margin:3em;text-align:center\">\
+Signed out. You can close this tab.</p>";
 
 static CANCELLED: AtomicBool = AtomicBool::new(false);
 
@@ -56,8 +59,13 @@ impl Listener {
         format!("http://localhost:{}{CALLBACK_PATH}", self.port)
     }
 
-    /// Run `open_login`, then return the URL Cognito redirected to.
-    pub fn wait(self, open_login: impl FnOnce() -> Result<(), String>) -> Result<String, String> {
+    /// Run `open_login`, then return the URL Cognito redirected to, showing
+    /// `page` in the browser tab that landed there.
+    pub fn wait(
+        self,
+        page: &str,
+        open_login: impl FnOnce() -> Result<(), String>,
+    ) -> Result<String, String> {
         CANCELLED.store(false, Ordering::SeqCst);
         open_login()?;
 
@@ -69,7 +77,7 @@ impl Listener {
             for socket in &self.sockets {
                 match socket.accept() {
                     Ok((stream, _)) => {
-                        if let Some(target) = serve(stream) {
+                        if let Some(target) = serve(stream, page) {
                             return Ok(format!("http://localhost:{}{target}", self.port));
                         }
                     }
@@ -109,7 +117,7 @@ fn bind_loopback(port: u16) -> io::Result<Vec<TcpListener>> {
 }
 
 /// Answer one request. Returns its target if it was the callback.
-fn serve(mut stream: TcpStream) -> Option<String> {
+fn serve(mut stream: TcpStream, page: &str) -> Option<String> {
     // Accepted sockets can inherit non-blocking mode; this one should wait.
     stream.set_nonblocking(false).ok()?;
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
@@ -119,7 +127,7 @@ fn serve(mut stream: TcpStream) -> Option<String> {
     let target = callback_target(request.lines().next()?).map(str::to_owned);
 
     let (status, body) = match target {
-        Some(_) => ("200 OK", DONE_PAGE),
+        Some(_) => ("200 OK", page),
         None => ("404 Not Found", ""),
     };
     let _ = write!(
@@ -169,7 +177,7 @@ mod tests {
         let port = 47899;
         let url = Listener::bind(&[port])
             .unwrap()
-            .wait(|| {
+            .wait(SIGNED_IN_PAGE, || {
                 std::thread::spawn(move || {
                     for path in ["/favicon.ico", "/callback?code=abc&state=xyz"] {
                         let mut s = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
@@ -187,7 +195,7 @@ mod tests {
         // tests in parallel.
         let err = Listener::bind(&[port])
             .unwrap()
-            .wait(|| {
+            .wait(SIGNED_IN_PAGE, || {
                 cancel();
                 Ok(())
             })

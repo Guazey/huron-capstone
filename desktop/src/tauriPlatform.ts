@@ -25,6 +25,7 @@ export const tauriPlatform: Platform = {
   },
   redirectUri: () => invoke<string>("start_sign_in").catch(rethrow),
   launchAuthFlow: (url) => invoke<string>("sign_in", { url }).catch(rethrow),
+  endLoginSession: (url) => invoke<void>("end_login_session", { url }).catch(rethrow),
   cancelAuthFlow: () => void invoke("cancel_sign_in"),
   openExternal: (url) =>
     void openUrl(url).catch((e: unknown) => console.error("couldn't open link", e)),

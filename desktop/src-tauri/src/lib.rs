@@ -34,12 +34,29 @@ fn start_sign_in(pending: State<PendingSignIn>) -> Result<String, String> {
 
 #[tauri::command]
 async fn sign_in(app: AppHandle, pending: State<'_, PendingSignIn>, url: String) -> Result<String, String> {
+    open_and_wait(app, &pending, url, login::SIGNED_IN_PAGE).await
+}
+
+/// Clear Cognito's sign-in cookie in the browser: its logout page redirects
+/// back to the listener start_sign_in bound.
+#[tauri::command]
+async fn end_login_session(app: AppHandle, pending: State<'_, PendingSignIn>, url: String) -> Result<(), String> {
+    open_and_wait(app, &pending, url, login::SIGNED_OUT_PAGE).await.map(drop)
+}
+
+/// Open `url` in the browser and wait for Cognito to redirect to the listener.
+async fn open_and_wait(
+    app: AppHandle,
+    pending: &PendingSignIn,
+    url: String,
+    page: &'static str,
+) -> Result<String, String> {
     if !url.starts_with("https://") {
         return Err("Refusing to open a non-HTTPS login page.".into());
     }
     let listener = pending.0.lock().unwrap().take().ok_or("Sign-in wasn't started.")?;
     tauri::async_runtime::spawn_blocking(move || {
-        listener.wait(|| app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string()))
+        listener.wait(page, || app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string()))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -83,7 +100,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(PendingSignIn::default())
-        .invoke_handler(tauri::generate_handler![start_sign_in, sign_in, cancel_sign_in])
+        .invoke_handler(tauri::generate_handler![start_sign_in, sign_in, end_login_session, cancel_sign_in])
         .setup(|app| {
             // A menu bar utility: no Dock icon, no app switcher entry.
             #[cfg(target_os = "macos")]
