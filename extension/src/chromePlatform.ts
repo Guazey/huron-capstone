@@ -12,4 +12,8 @@ export const chromePlatform: Platform = {
     if (!redirect) throw new Error("Sign-in was cancelled.");
     return redirect;
   },
+  async endLoginSession(url) {
+    // Not interactive: Cognito redirects straight back, so no window opens.
+    await chrome.identity.launchWebAuthFlow({ url, interactive: false });
+  },
 };

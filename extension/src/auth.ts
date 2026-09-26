@@ -51,6 +51,12 @@ export function authorizeUrl(opts: {
   return `${opts.loginHost}/oauth2/authorize?${params}`;
 }
 
+/** Cognito's logout page: clears its sign-in cookie, then redirects to logoutUri. */
+export function logoutUrl(opts: { loginHost: string; clientId: string; logoutUri: string }): string {
+  const params = new URLSearchParams({ client_id: opts.clientId, logout_uri: opts.logoutUri });
+  return `${opts.loginHost}/logout?${params}`;
+}
+
 /** Pull the code out of the redirect, refusing anything that fails the state check. */
 export function codeFromRedirect(redirect: string, expectedState: string): string {
   const params = new URL(redirect).searchParams;
@@ -161,5 +167,16 @@ export async function signOut(): Promise<void> {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ token: session.refreshToken, client_id: config.clientId }),
     }).catch(() => undefined);
+  }
+  // Cognito's hosted page keeps its own sign-in cookie for about an hour.
+  // Unless it's cleared, the next sign-in skips the password and MFA code.
+  const endLoginSession = platform().endLoginSession;
+  if (endLoginSession) {
+    const url = logoutUrl({
+      loginHost: config.loginHost,
+      clientId: config.clientId,
+      logoutUri: await platform().redirectUri(),
+    });
+    await endLoginSession(url).catch(() => undefined);
   }
 }

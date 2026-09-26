@@ -6,6 +6,7 @@ import {
   base64url,
   codeFromRedirect,
   emailFromIdToken,
+  logoutUrl,
   pkceChallenge,
   randomString,
 } from "./auth";
@@ -43,6 +44,23 @@ describe("authorizeUrl", () => {
       state: "s1",
       code_challenge: "c1",
       code_challenge_method: "S256",
+    });
+  });
+});
+
+describe("logoutUrl", () => {
+  it("names the client and where to land afterwards", () => {
+    const url = new URL(
+      logoutUrl({
+        loginHost: "https://example.auth.us-west-2.amazoncognito.com",
+        clientId: "client123",
+        logoutUri: "https://abc.chromiumapp.org/",
+      }),
+    );
+    expect(url.pathname).toBe("/logout");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      client_id: "client123",
+      logout_uri: "https://abc.chromiumapp.org/",
     });
   });
 });
