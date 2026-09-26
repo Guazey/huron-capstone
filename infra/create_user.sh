@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Create a sidebar login in the Cognito pool deploy.sh made, or set a new
-# password on one that already exists. Interactive: run it yourself so the
-# password never lands in a log, a transcript, or argv.
+# password (and optionally reset the authenticator app) on one that already
+# exists. Interactive: run it yourself so the password never lands in a log,
+# a transcript, or argv.
 # Usage: infra/create_user.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,4 +33,15 @@ print(json.dumps({"UserPoolId": os.environ["POOL_ID"], "Username": os.environ["U
                   "Password": os.environ["USER_PASSWORD"], "Permanent": True}))' > "$REQUEST"
 unset USER_PASSWORD
 aws cognito-idp admin-set-user-password --cli-input-json "file://$REQUEST"
-echo "ready: $USER_EMAIL"
+
+# Lost phone: forget their authenticator app. MFA stays required, so the next
+# sign-in shows a fresh QR code to register a new one.
+if [[ "$EXISTING" != "0" ]]; then
+  read -rp "Also reset their authenticator app? [y/N] " RESET_MFA
+  if [[ "$RESET_MFA" == [yY] ]]; then
+    aws cognito-idp admin-set-user-mfa-preference --user-pool-id "$POOL_ID" \
+      --username "$USER_EMAIL" --software-token-mfa-settings Enabled=false,PreferredMfa=false
+    echo "authenticator reset; they'll set up a new one at next sign-in"
+  fi
+fi
+echo "ready: $USER_EMAIL (first sign-in asks them to scan a QR code into an authenticator app)"

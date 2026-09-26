@@ -37,6 +37,7 @@ def test_deployer_can_only_touch_project_roles_with_the_boundary():
 def test_deployer_is_pinned_to_this_pool_and_knowledge_base():
     s = statements(render("deployer-policy.template.json"))
     assert s["CognitoThisPoolOnly"]["Resource"].endswith(":userpool/us-west-2_Abc")
+    assert "cognito-idp:SetUserPoolMfaConfig" in s["CognitoThisPoolOnly"]["Action"]
     assert s["KnowledgeBaseThisOneOnly"]["Resource"].endswith(":knowledge-base/KB12345678")
 
 
@@ -52,3 +53,10 @@ def test_boundary_keeps_roles_to_claude_and_project_resources():
     assert all("anthropic" in r for r in s["ClaudeOnly"]["Resource"])
     assert s["OwnChatMemory"]["Resource"].endswith(":memory/capstone_sidebar_memory-*")
     assert not any(st.get("Action") == "*" for st in s.values())
+
+
+def test_deploy_requires_authenticator_app_mfa():
+    deploy = (INFRA / "deploy.sh").read_text()
+    assert "--mfa-configuration ON" in deploy
+    assert "--software-token-mfa-configuration Enabled=true" in deploy
+    assert "sms-mfa-configuration" not in deploy

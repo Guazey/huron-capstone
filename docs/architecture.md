@@ -72,6 +72,10 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 
 - **No AWS credentials on the client.** The only secret the extension holds
   is a short-lived Cognito token.
+- **Sign-in needs a second factor.** The pool requires an authenticator-app
+  code (TOTP) on every login; the hosted page walks new users through the QR
+  code. Cognito stores and salts the password hashes; the app never sees a
+  password. `infra/create_user.sh` can reset a lost authenticator.
 - **The execution role** can invoke one Bedrock model, read and write
   events in its own AgentCore Memory, `Retrieve` from its one Knowledge Base,
   pull its own image, and write logs, traces, and metrics. Nothing else. The

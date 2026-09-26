@@ -93,7 +93,9 @@
         "cognito-idp:ListUserPoolClients", "cognito-idp:CreateUserPoolClient",
         "cognito-idp:DescribeUserPoolClient", "cognito-idp:UpdateUserPoolClient",
         "cognito-idp:CreateUserPoolDomain", "cognito-idp:DeleteUserPoolDomain",
-        "cognito-idp:ListUsers", "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword"
+        "cognito-idp:ListUsers", "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword",
+        "cognito-idp:SetUserPoolMfaConfig", "cognito-idp:GetUserPoolMfaConfig",
+        "cognito-idp:AdminSetUserMFAPreference"
       ],
       "Resource": "arn:aws:cognito-idp:{{REGION}}:{{ACCOUNT_ID}}:userpool/{{POOL_ID}}"
     },

@@ -90,7 +90,7 @@ aws iam put-role-policy --role-name "$ROLE_NAME" \
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 
 # ---------------------------------------------------------------- 3. Cognito
-step "3/6 Cognito user pool + app client (admin-created users only)"
+step "3/6 Cognito user pool + app client (admin-created users only, MFA required)"
 POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 \
   --query "UserPools[?Name=='${NAME}'].Id | [0]" --output text)
 if [[ "$POOL_ID" == "None" ]]; then
@@ -100,6 +100,11 @@ if [[ "$POOL_ID" == "None" ]]; then
     --policies 'PasswordPolicy={MinimumLength=12,RequireUppercase=true,RequireLowercase=true,RequireNumbers=true,RequireSymbols=false}' \
     --query UserPool.Id --output text)
 fi
+# Every sign-in needs a code from an authenticator app (TOTP). Users with no
+# app registered yet are walked through the QR code on the hosted login page.
+# SMS stays off: it costs per message and SIM swaps defeat it.
+aws cognito-idp set-user-pool-mfa-config --user-pool-id "$POOL_ID" \
+  --software-token-mfa-configuration Enabled=true --mfa-configuration ON >/dev/null
 CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" \
   --query "UserPoolClients[?ClientName=='${NAME}'].ClientId | [0]" --output text)
 if [[ "$CLIENT_ID" == "None" ]]; then

@@ -25,10 +25,31 @@ digest = hmac.new(e["CLI_SECRET"].encode(), (e["USER_EMAIL"] + e["CLI_CLIENT_ID"
 print(json.dumps({"USERNAME": e["USER_EMAIL"], "PASSWORD": e["USER_PASSWORD"],
                   "SECRET_HASH": base64.b64encode(digest).decode()}))')
 unset CLI_SECRET
-TOKEN=$(aws cognito-idp initiate-auth --client-id "$CLI_CLIENT_ID" \
-  --auth-flow USER_PASSWORD_AUTH --auth-parameters "$AUTH_PARAMS" \
-  --query AuthenticationResult.AccessToken --output text)
-unset USER_PASSWORD AUTH_PARAMS
+AUTH=$(aws cognito-idp initiate-auth --client-id "$CLI_CLIENT_ID" \
+  --auth-flow USER_PASSWORD_AUTH --auth-parameters "$AUTH_PARAMS" --output json)
+unset USER_PASSWORD
+CHALLENGE=$(jq -r '.ChallengeName // empty' <<<"$AUTH")
+if [[ "$CHALLENGE" == "MFA_SETUP" ]]; then
+  echo "No authenticator app on this login yet. Sign in once in the side panel or"
+  echo "desktop app to scan the QR code, then rerun this." >&2
+  exit 1
+elif [[ "$CHALLENGE" == "SOFTWARE_TOKEN_MFA" ]]; then
+  read -rp "Authenticator code: " MFA_CODE
+  # Same SECRET_HASH as the password step; the challenge answers go in as JSON.
+  RESPONSES=$(AUTH_PARAMS="$AUTH_PARAMS" MFA_CODE="$MFA_CODE" python3 -c '
+import json, os
+p = json.loads(os.environ["AUTH_PARAMS"])
+print(json.dumps({"USERNAME": p["USERNAME"], "SECRET_HASH": p["SECRET_HASH"],
+                  "SOFTWARE_TOKEN_MFA_CODE": os.environ["MFA_CODE"]}))')
+  AUTH=$(aws cognito-idp respond-to-auth-challenge --client-id "$CLI_CLIENT_ID" \
+    --challenge-name SOFTWARE_TOKEN_MFA --session "$(jq -r .Session <<<"$AUTH")" \
+    --challenge-responses "$RESPONSES" --output json)
+elif [[ -n "$CHALLENGE" ]]; then
+  echo "unexpected sign-in challenge: $CHALLENGE" >&2
+  exit 1
+fi
+TOKEN=$(jq -r .AuthenticationResult.AccessToken <<<"$AUTH")
+unset AUTH_PARAMS RESPONSES AUTH
 
 # AgentCore requires session IDs of at least 33 characters.
 SESSION_ID="${SESSION_ID:-sidebar-$(uuidgen | tr 'A-Z' 'a-z')}"
