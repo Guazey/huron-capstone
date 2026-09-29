@@ -10,6 +10,7 @@ same ticker three times makes one upstream call, not three.
 import re
 import time
 from datetime import datetime, timezone
+from typing import Literal, get_args
 
 import yfinance as yf
 
@@ -18,7 +19,8 @@ REQUEST_TIMEOUT_SECONDS = 10
 
 # Periods the history tool accepts. Kept small so the model can't request a
 # huge series and so every value is one yfinance understands.
-PERIODS = ("5d", "1mo", "3mo", "6mo", "1y", "5y")
+Period = Literal["5d", "1mo", "3mo", "6mo", "1y", "5y"]
+PERIODS = get_args(Period)
 
 # Tickers come from the model, so treat them as untrusted input. Letters,
 # digits, and the few symbols real tickers use: BRK-B, ^GSPC, EURUSD=X, RY.TO

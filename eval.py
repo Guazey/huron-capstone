@@ -218,7 +218,9 @@ def run_eval():
     for case in test_cases:
         original = market_data.get_news
         if "stub_news" in case:
-            market_data.get_news = lambda symbol=None, limit=8, _h=case["stub_news"]: _h
+            def stub_news(symbol: str | None = None, limit: int = 8, _h=case["stub_news"]) -> list[dict]:
+                return _h
+            market_data.get_news = stub_news
         try:
             # Multi-turn cases replay earlier questions on one thread first.
             graph = with_memory(InMemorySaver())

@@ -67,7 +67,7 @@ def pick_filings(submissions: dict) -> list[dict]:
     recent = submissions.get("filings", {}).get("recent", {})
     rows = zip(recent.get("form", []), recent.get("filingDate", []),
                recent.get("accessionNumber", []), recent.get("primaryDocument", []))
-    taken = {form: [] for form in FORMS}
+    taken: dict[str, list[dict]] = {form: [] for form in FORMS}
     for form, filed, accession, doc in rows:  # EDGAR lists newest first
         if form in FORMS and len(taken[form]) < FORMS[form] and doc:
             taken[form].append({"form": form, "filed": filed, "accession": accession, "doc": doc})

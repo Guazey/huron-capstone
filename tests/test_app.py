@@ -23,7 +23,7 @@ def run(payload):
     return asyncio.run(collect())
 
 
-seen_configs = []
+seen_configs: list[dict] = []
 
 
 def fake_graph(monkeypatch, chunks):

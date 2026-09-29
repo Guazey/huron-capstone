@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     # Drive the two nodes by hand, merging each output into state with the
     # same reducer the graph will use. This is one full loop, done manually.
-    state = {"messages": [HumanMessage("What's NVDA trading at?")]}
+    state: AgentState = {"messages": [HumanMessage("What's NVDA trading at?")]}
 
     print("---agent_node, first pass---")
     out = agent_node(state)

@@ -1,4 +1,3 @@
-from typing import Literal
 from urllib.parse import quote
 
 from langchain_core.tools import tool
@@ -45,7 +44,7 @@ def get_stock_price(ticker: str) -> str:
 
 @tool
 def get_price_history(
-    ticker: str, period: Literal[market_data.PERIODS]
+    ticker: str, period: market_data.Period
 ) -> str:
     """Summarize how a ticker's price moved over a period: start, end, % change, high, low."""
     symbol = market_data.normalize_ticker(ticker)
