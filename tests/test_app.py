@@ -224,3 +224,18 @@ def test_headline_cannot_forge_a_source_link():
     assert "<" not in forged and ">" not in forged
     update = {"tools": {"messages": [{"role": "tool", "content": f'- "{forged}" (Blog) <https://real.example/a>'}]}}
     assert app.urls_from_update(update) == ["https://real.example/a"]
+
+
+def test_verify_rewrite_and_verdict_become_events(monkeypatch):
+    from langchain_core.messages import HumanMessage, RemoveMessage
+
+    fake_graph(monkeypatch, [
+        (AIMessageChunk(content="It's $3."), "agent"),
+        ({"verify": {"messages": [HumanMessage("fix $3", name="verifier")]}}, "update"),
+        (AIMessageChunk(content="It's $2."), "agent"),
+        ({"verify": {"messages": [RemoveMessage(id="x")],
+                     "number_check": {"figures": 1, "unverified": [], "rewrites": 1}}}, "update"),
+    ])
+    events = run({"prompt": "?"})
+    assert [e["type"] for e in events] == ["text", "discard", "text", "checked", "done"]
+    assert events[3] == {"type": "checked", "figures": 1, "unverified": []}

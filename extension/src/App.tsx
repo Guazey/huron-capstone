@@ -14,11 +14,15 @@ type Message = {
   requestId?: string;
   error?: string;
   streaming?: boolean;
+  /** The server's check of every figure in the answer against the tool results. */
+  check?: { figures: number; unverified: string[] };
+  /** A draft was discarded for an unsupported figure; a corrected one is coming. */
+  rechecking?: boolean;
 };
 
 const EXAMPLES = [
   "What's the biggest news in the market today?",
-  "How is NVDA doing today?",
+  "How fast did Apple's revenue grow last fiscal year?",
   "What risks does Tesla list in its latest 10-K?",
   "How has TSLA moved over the last 3 months, and why?",
 ];
@@ -31,7 +35,9 @@ const TOOL_LABELS: Record<string, string> = {
   get_news: "news",
   get_company_profile: "company profile",
   get_earnings: "earnings",
+  get_financials: "SEC financials",
   search_sec_filings: "SEC filings",
+  calculate: "the math",
 };
 
 const CHAT_KEY = "chat";
@@ -134,6 +140,13 @@ export default function App() {
             updateLast((m) => ({ ...m, text: "", tools: [...m.tools, event.name] }));
           else if (event.type === "sources")
             updateLast((m) => ({ ...m, sources: [...(m.sources ?? []), ...event.urls] }));
+          else if (event.type === "discard") updateLast((m) => ({ ...m, text: "", rechecking: true }));
+          else if (event.type === "checked")
+            updateLast((m) => ({
+              ...m,
+              rechecking: false,
+              check: { figures: event.figures, unverified: event.unverified },
+            }));
           else if (event.type === "done") updateLast((m) => ({ ...m, requestId: event.request_id }));
           else if (event.type === "error")
             updateLast((m) => ({ ...m, error: event.message, requestId: event.request_id }));
@@ -274,6 +287,24 @@ export function AnswerText({ text, sources }: { text: string; sources?: string[]
   );
 }
 
+/** Whether every $, %, and $B figure in the answer matched a number the tools returned. */
+function NumberCheck({ check }: { check?: Message["check"] }) {
+  if (!check || check.figures === 0) return null;
+  if (check.unverified.length === 0) {
+    const n = check.figures;
+    return (
+      <p className="check ok" title="Every figure matched a number from the tools' sources">
+        ✓ {n} {n === 1 ? "figure" : "figures"} matched to sources
+      </p>
+    );
+  }
+  return (
+    <p className="check warn" title="These figures didn't match any number the tools returned">
+      Couldn't match to a source: {check.unverified.join(", ")}
+    </p>
+  );
+}
+
 function AssistantMessage({ message: m }: { message: Message }) {
   const [copied, setCopied] = useState(false);
   const looking = m.streaming && !m.text && m.tools.length > 0;
@@ -287,14 +318,16 @@ function AssistantMessage({ message: m }: { message: Message }) {
 
   return (
     <div className="bubble assistant">
-      {m.streaming && !m.text && !looking && <p className="muted">Thinking…</p>}
-      {looking && (
+      {m.streaming && !m.text && m.rechecking && <p className="muted">Double-checking the numbers…</p>}
+      {m.streaming && !m.text && !looking && !m.rechecking && <p className="muted">Thinking…</p>}
+      {looking && !m.rechecking && (
         <p className="muted">
           Looking up {uniqueTools.map((t) => TOOL_LABELS[t] ?? t).join(" and ")}…
         </p>
       )}
       {m.text && <AnswerText text={m.text} sources={m.sources} />}
       {m.error && <p className="error" role="alert">{m.error}</p>}
+      {!m.streaming && m.text && <NumberCheck check={m.check} />}
       {!m.streaming && (m.text || m.error) && (
         <div className="meta">
           {m.text && (

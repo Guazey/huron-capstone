@@ -37,4 +37,13 @@ describe("parseSSE", () => {
     );
     expect(events).toEqual([{ type: "error", message: "Something went wrong", request_id: "r2" }]);
   });
+  it("parses the figure-check events", () => {
+    const { events } = parseSSE(
+      'data: {"type": "discard"}\n\ndata: {"type": "checked", "figures": 2, "unverified": ["$420B"]}\n\n',
+    );
+    expect(events).toEqual([
+      { type: "discard" },
+      { type: "checked", figures: 2, unverified: ["$420B"] },
+    ]);
+  });
 });

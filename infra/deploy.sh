@@ -15,6 +15,15 @@ source infra/config.sh
 
 step() { printf '\n== %s\n' "$*"; }
 
+# get_financials calls the SEC's XBRL API from the runtime, and the SEC
+# refuses requests without a User-Agent naming a contact. Checked before
+# anything is built. It goes into a JSON string below, so no quotes.
+SEC_USER_AGENT="${SEC_USER_AGENT:-$(grep -s '^SEC_USER_AGENT=' .env | cut -d= -f2- || true)}"
+if [[ "$SEC_USER_AGENT" != *@* || "$SEC_USER_AGENT" == *[\"\\]* ]]; then
+  echo 'Set SEC_USER_AGENT="Your Name you@example.com" in .env (no quotes inside).' >&2
+  exit 1
+fi
+
 # ---------------------------------------------------------------- 1. image
 step "1/6 ECR repo + ARM64 image"
 aws ecr describe-repositories --repository-names "$NAME" >/dev/null 2>&1 ||
@@ -254,7 +263,7 @@ COMMON_ARGS=(
   --network-configuration '{"networkMode":"PUBLIC"}'
   --protocol-configuration '{"serverProtocol":"HTTP"}'
   --authorizer-configuration "$AUTHORIZER"
-  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\",\"MEMORY_ID\":\"${MEMORY_ID}\",\"KB_ID\":\"${KB_ID}\"}"
+  --environment-variables "{\"BEDROCK_MODEL_ID\":\"${MODEL_ID}\",\"MEMORY_ID\":\"${MEMORY_ID}\",\"KB_ID\":\"${KB_ID}\",\"SEC_USER_AGENT\":\"${SEC_USER_AGENT}\"}"
   # Forward the (already verified) bearer token so app.py can key memory by user.
   --request-header-configuration '{"requestHeaderAllowlist":["Authorization"]}'
 )

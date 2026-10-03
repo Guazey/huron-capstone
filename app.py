@@ -15,6 +15,12 @@ Response: Server-Sent Events, one JSON object per `data:` line:
     {"type": "text", "text": "AAPL is"}           a piece of the answer
     {"type": "sources", "urls": ["https://..."]}  pages the tools used; the
                                                   only links the panel will open
+    {"type": "discard"}                           the answer so far had a figure no
+                                                  tool returned; clear it, a
+                                                  corrected answer follows
+    {"type": "checked", "figures": 3, "unverified": []}
+                                                  verify.py's verdict on the
+                                                  final answer's figures
     {"type": "done", "request_id": "..."}         the answer is complete
     {"type": "error", "message": "...", "request_id": "..."}
 """
@@ -114,6 +120,17 @@ def events_from_chunk(chunk) -> list[dict]:
 URL_IN_ANGLES = re.compile(r"<(https://[^>\s]+)>")
 
 
+def events_from_verify(update: dict | None) -> list[dict]:
+    """The verify node either asked for a rewrite (discard the draft) or passed a verdict."""
+    update = update or {}
+    if any(getattr(m, "type", None) == "human" for m in update.get("messages", [])):
+        return [{"type": "discard"}]
+    check = update.get("number_check")
+    if check is None:
+        return []
+    return [{"type": "checked", "figures": check["figures"], "unverified": check["unverified"]}]
+
+
 def urls_from_update(update: dict) -> list[str]:
     """URLs in the tool results of one graph update (tools write them as <https://...>)."""
     found = []
@@ -129,6 +146,8 @@ async def invoke(payload, context):
     started = time.monotonic()
     usage = {"input_tokens": 0, "output_tokens": 0}
     tools_called = []
+    number_check: dict = {}
+    rewrites = 0
     outcome = "ok"
     prompt = ""
 
@@ -152,6 +171,12 @@ async def invoke(payload, context):
                 if urls:
                     sent_urls.update(urls)
                     yield {"type": "sources", "urls": urls}
+                for event in events_from_verify(data.get("verify")):
+                    if event["type"] == "checked":
+                        number_check = event
+                    else:
+                        rewrites += 1
+                    yield event
                 continue
             chunk, meta = data
             if meta.get("langgraph_node") != "agent":
@@ -186,6 +211,10 @@ async def invoke(payload, context):
             "model": os.environ.get("BEDROCK_MODEL_ID"),
             "prompt_chars": len(prompt),
             "tools_called": tools_called,
+            # Figure counts only, never the figures: they'd reveal the question.
+            "figures_checked": number_check.get("figures"),
+            "figures_unverified": len(number_check.get("unverified", [])),
+            "rewrites": rewrites,
             **usage,
             "latency_ms": round((time.monotonic() - started) * 1000),
         }))

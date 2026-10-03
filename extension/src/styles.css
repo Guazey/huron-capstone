@@ -8,6 +8,8 @@
   --accent: #2f5bea;
   --accent-fg: #ffffff;
   --error: #b42318;
+  --ok: #1a7f37;
+  --warn: #9a6700;
   color-scheme: light dark;
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -23,6 +25,8 @@
     --accent: #6d8cff;
     --accent-fg: #0b0d12;
     --error: #ff8a80;
+    --ok: #57d37a;
+    --warn: #e3b341;
   }
 }
 
@@ -49,6 +53,9 @@ h1 { font-size: 16px; margin: 0; }
 
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; }
 .chip { border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+.check { margin: 6px 0 0; font-size: 12px; }
+.check.ok { color: var(--ok); }
+.check.warn { color: var(--warn); }
 .rid { color: var(--muted); font-family: ui-monospace, monospace; }
 
 form { display: flex; gap: 6px; }

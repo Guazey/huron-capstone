@@ -1,13 +1,16 @@
 from typing import Annotated
 
 from langgraph.graph.message import add_messages
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 
 class AgentState(TypedDict):
     # add_messages is a reducer: when a node returns {"messages": [...]},
     # LangGraph appends to the existing list instead of replacing it.
     messages: Annotated[list, add_messages]
+    # The verify node's verdict on the latest answer: how many figures it
+    # checked and which ones no tool result supports. Overwritten every turn.
+    number_check: NotRequired[dict]
 
 
 if __name__ == "__main__":

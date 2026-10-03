@@ -2,6 +2,8 @@ from urllib.parse import quote
 
 from langchain_core.tools import tool
 
+import calculator
+import financials
 import market_data
 
 YAHOO = "https://finance.yahoo.com"
@@ -230,9 +232,80 @@ def search_sec_filings(query: str, ticker: str | None = None) -> str:
     return "\n".join(lines)
 
 
+def _fmt_reported(value, unit: str) -> str:
+    """Exact as filed plus a readable form: -$1,234,000,000 (-$1.23B); $7.46 per share."""
+    sign = "-" if value < 0 else ""
+    if unit == "USD/shares":
+        return f"{sign}${abs(value):,.2f} per share"
+    exact = f"{sign}${abs(value):,.0f}"
+    return f"{exact} ({sign}{_fmt_big(abs(value))})" if abs(value) >= 1e6 else exact
+
+
+def _period_label(v: dict, period: str) -> str:
+    """'FY2025 (ended 2025-09-27)': the company's fiscal name when its filing gives one, else dates."""
+    if v["start"] is None:
+        return f"As of {v['end']}"
+    dates = f"ended {v['end']}" if period == "annual" else f"{v['start']} to {v['end']}"
+    if v.get("fiscal"):
+        return f"{v['fiscal']} ({dates})"
+    return f"Fiscal year {dates}" if period == "annual" else f"Quarter {dates}"
+
+
+@tool
+def get_financials(
+    ticker: str,
+    metrics: list[financials.Metric] | None = None,
+    period: financials.PeriodType = "annual",
+) -> str:
+    """Financial statement figures exactly as the company reported them to the SEC (XBRL): revenue, profit, EPS, cash flow, R&D, cash, assets, debt, equity. Each value has its period, form, filing date, and filing link. Covers any US-listed company that files 10-Ks.
+
+    Use this for reported results and history ("what was revenue last year",
+    "how have margins changed"). Defaults to revenue, net income, diluted
+    EPS, and operating cash flow for the last 4 fiscal years.
+    """
+    symbol = market_data.normalize_ticker(ticker)
+    if symbol is None:
+        return f"No financials found for {ticker}: not a valid ticker symbol"
+    wanted = list(dict.fromkeys(metrics or financials.DEFAULT_METRICS))
+    f = financials.get_financials(symbol, wanted, period)
+    if f is None:
+        return (f"No SEC financial data for {symbol}: it isn't a US company that files 10-Ks "
+                "(funds, ETFs, and foreign filers aren't covered)")
+    if not f["metrics"]:
+        return f"{f['name']} ({symbol}) doesn't report {', '.join(wanted)} in its SEC filings"
+    lines = [f"{f['name']} ({symbol}) {period} figures as reported to the SEC (XBRL), newest first:"]
+    for metric, data in f["metrics"].items():
+        lines.append(f"{financials.LABELS[metric]} [us-gaap:{data['tag']}]:")
+        for v in data["values"]:
+            lines.append(f"- {_period_label(v, period)}: {_fmt_reported(v['value'], data['unit'])}, "
+                         f"{v['form']} filed {v['filed']} <{v['url']}>")
+    missing = [m for m in wanted if m not in f["metrics"]]
+    if missing:
+        lines.append(f"Not reported under a standard tag: {', '.join(missing)}")
+    if period == "quarterly":
+        lines.append("Fiscal Q4 has no 10-Q: it is the annual figure minus the first three quarters.")
+    return "\n".join(lines)
+
+
+@tool
+def calculate(expression: str) -> str:
+    """Do arithmetic exactly instead of in your head: growth rates, margins, ratios, differences, sums, averages.
+
+    Use plain numbers copied from tool results, e.g. growth:
+    "(416161000000 - 391035000000) / 391035000000 * 100"; margin:
+    "112010000000 / 416161000000 * 100". Supports + - * / ** % ( ) and
+    abs, round, min, max, sqrt.
+    """
+    try:
+        result = calculator.evaluate(expression)
+    except calculator.CalculationError as e:
+        return f"Could not calculate {expression!r}: {e}"
+    return f"{expression} = {calculator.format_result(result)}"
+
+
 TOOLS = [
     search_ticker, get_stock_price, get_price_history, get_market_overview, get_news,
-    get_company_profile, get_earnings, search_sec_filings,
+    get_company_profile, get_earnings, get_financials, search_sec_filings, calculate,
 ]
 
 

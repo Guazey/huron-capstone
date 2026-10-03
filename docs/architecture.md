@@ -22,8 +22,9 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 │   execution role: one model, this memory, this KB, logs   │
 │  ┌────────────────────────────────────────────┐           │
 │  │ app.py  (BedrockAgentCoreApp entrypoint)    │           │
-│  │   -> graph.py (LangGraph, unchanged)        │           │
+│  │   -> graph.py (agent ⇄ tools -> verify)     │           │
 │  │        tools.py -> market_data.py ──────────┼──────────▶ Yahoo Finance (yfinance)
+│  │                 -> financials.py ───────────┼──────────▶ SEC XBRL API (data.sec.gov)
 │  └──────┬──────────────────────────┬──────────┘           │
 │         ▼                          ▼                       │
 │  Bedrock: Claude Haiku 4.5   AgentCore Memory              │
@@ -45,6 +46,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | SEC filings RAG: `sec_edgar.py` → S3 → Bedrock Managed Knowledge Base; `search_sec_filings` tool | `sec_edgar.py`, `knowledge.py`, `infra/deploy.sh` | done ([ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md)) |
 | Desktop app: the same UI in an always-on-top menu bar window; system-browser sign-in with a loopback redirect; signed auto-update from GitHub Releases | `desktop/`, `extension/src/platform.ts`, `infra/login_setup.sh` | done: built, signed in and answered end to end; auto-updated 0.1.0 → 0.1.1 → 0.1.2 from GitHub Releases; sign-in verified on the fallback port with 47813 taken ([ADR-0004](decisions/0004-tauri-desktop-app.md)) |
 | Multi-turn memory (AgentCore Memory, keyed by session + Cognito user) | `app.py`, `graph.py`, `infra/deploy.sh` | done; page ticker detection still to do |
+| Traceable numbers: `get_financials` (SEC XBRL, any US filer), `calculate` (code, not mental math), and a `verify` node that checks every $/%/$B figure against the tool results before the answer is final, with one rewrite; the panel shows the verdict | `financials.py`, `calculator.py`, `verify.py`, `nodes.py`, `graph.py`, `app.py`, `extension/src/App.tsx` | done ([ADR-0005](decisions/0005-traceable-numbers.md)); eval 16/16 live |
 
 ## Request flow
 
@@ -66,6 +68,7 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 - [ADR-0002](decisions/0002-yfinance-market-data.md): yfinance for market data, behind `market_data.py`
 - [ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md): SEC filings RAG with a Bedrock Managed Knowledge Base
 - [ADR-0004](decisions/0004-tauri-desktop-app.md): Tauri desktop app sharing the extension's UI through `platform.ts`
+- [ADR-0005](decisions/0005-traceable-numbers.md): traceable numbers: SEC XBRL figures, a calculator tool, and a verify node
 - Diagram: [`architecture.excalidraw`](architecture.excalidraw) (open at excalidraw.com)
 
 ## Security and data

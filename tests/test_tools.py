@@ -86,8 +86,15 @@ def test_search_ticker_nothing_found(monkeypatch):
 def test_every_tool_is_bound():
     assert [t.name for t in TOOLS] == [
         "search_ticker", "get_stock_price", "get_price_history", "get_market_overview", "get_news",
-        "get_company_profile", "get_earnings", "search_sec_filings",
+        "get_company_profile", "get_earnings", "get_financials", "search_sec_filings", "calculate",
     ]
+
+
+def test_calculate_shows_the_formula_and_reports_errors():
+    from tools import calculate
+
+    assert calculate.invoke({"expression": "(110 - 100) / 100 * 100"}) == "(110 - 100) / 100 * 100 = 10"
+    assert calculate.invoke({"expression": "1 / 0"}) == "Could not calculate '1 / 0': ZeroDivisionError"
 
 
 def test_news_tool_labels_headlines_as_untrusted(monkeypatch):

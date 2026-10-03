@@ -40,10 +40,27 @@ Design and decisions: [`docs/architecture.md`](docs/architecture.md), [`docs/dec
 | `get_earnings` | Next report date; recent EPS vs. estimates |
 | `get_news` | Headlines for one company or the whole market |
 | `get_market_overview` | Indexes and today's top gainers, losers, most active |
+| `get_financials` | Revenue, profit, EPS, cash flow, balance sheet, exactly as reported to the SEC (XBRL), by fiscal year or quarter, for any US filer |
 | `search_sec_filings` | Passages from 10-K/10-Q filings (risks, strategy, IPO details) |
+| `calculate` | Growth rates, margins, differences: arithmetic done by code, never in the model's head |
 
 Every tool result carries the exact page it came from. Answers end with a
 Sources line, and the panel only makes those tool-returned links clickable.
+
+**Every figure is checked before the answer is final.** A `verify` step in the
+graph matches each $, %, and $B figure in the answer against the numbers the
+tools returned. A figure no tool returned sends the answer back to be fixed
+once (the panel swaps in the corrected answer). The panel then shows "✓ 6
+figures matched to sources", or names any figure it still couldn't match.
+See [ADR-0005](docs/decisions/0005-traceable-numbers.md).
+
+```
+You:   How fast did Apple's revenue grow last fiscal year, and what was its profit margin?
+Agent: [SEC financials, the math] For FY2025 (ended September 27, 2025):
+       Revenue grew 6.4% ($416.16B vs. $391.04B in FY2024); profit margin was
+       26.9% ($112.01B net income ÷ $416.16B revenue). Sources: [Apple 10-K](https://www.sec.gov/...)
+       ✓ 6 figures matched to sources
+```
 
 ## Where each piece lives
 
@@ -53,14 +70,17 @@ Each Python file does one job, and most can be run on their own
 | File | What it is |
 | --- | --- |
 | `app.py` | AgentCore entry point: validates the request, keys memory by session + signed-in user, streams tool/text/sources/done events, logs one line per request (never the question text) |
-| `graph.py`, `nodes.py`, `state.py` | The LangGraph loop: call the model, run the tools it asked for, repeat |
+| `graph.py`, `nodes.py`, `state.py` | The LangGraph loop: call the model, run the tools it asked for, repeat, then check the answer's figures |
+| `verify.py` | Pulls each figure out of an answer and matches it against the tool results, allowing honest rounding |
 | `prompts.py`, `model.py` | The system prompt; the Bedrock model with timeouts, retries, and `max_tokens` |
 | `tools.py` | The 8 tools above |
 | `market_data.py` | The only code that talks to yfinance: ticker validation, 60s cache, cleaning third-party text |
+| `financials.py` | The only code that talks to the SEC's XBRL API: picks each metric's tag, deduplicates restated periods, names fiscal periods from the filing |
+| `calculator.py` | Safe arithmetic: parses the expression and evaluates only numbers, operators, and a few functions (never `eval`) |
 | `sec_edgar.py` | Loads recent 10-K/10-Q filings for a watchlist into S3 and runs Knowledge Base ingestion |
 | `knowledge.py` | Searches the filings Knowledge Base |
 | `main.py` | Asks one question from the terminal and prints every step |
-| `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance |
+| `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance, SEC figures and math, fiscal labels, and every figure passing the verify step |
 | `tests/` | Unit tests with the network and model stubbed; run in CI |
 | `extension/` | The Chrome side panel; its `src/` is the shared UI, with host specifics behind `platform.ts` |
 | `desktop/` | The same UI as a Tauri menu bar app (macOS/Windows): always on top, docked right, toggled with Alt+Shift+M; signs in through the system browser and a loopback redirect |

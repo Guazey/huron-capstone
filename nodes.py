@@ -1,7 +1,8 @@
 import logging
 
-from langchain_core.messages import trim_messages
+from langchain_core.messages import HumanMessage, RemoveMessage, trim_messages
 
+import verify
 from model import model_with_tools
 from prompts import prompt
 from state import AgentState
@@ -32,10 +33,29 @@ def recent_history(messages):
     )
 
 
+def without_text(response):
+    """A tool-calling reply with its text removed, keeping only the tool calls.
+
+    Text next to a tool call is narration ("let me check") or the start of an
+    answer the model means to finish after the tool returns. The panel throws
+    it away, and if it stayed in the conversation the model would carry on
+    mid-sentence after the result, leaving the user half an answer. With it
+    gone, the answer after the last tool call is always complete.
+    """
+    if not response.tool_calls:
+        return response
+    content = response.content
+    if isinstance(content, str):
+        content = ""
+    else:
+        content = [b for b in content if not (isinstance(b, dict) and b.get("type") == "text")]
+    return response.model_copy(update={"content": content})
+
+
 def agent_node(state: AgentState):
     """Call the model with the system prompt + recent conversation; add its reply to state."""
     response = agent_chain.invoke({"messages": recent_history(state["messages"])})
-    return {"messages": [response]}
+    return {"messages": [without_text(response)]}
 
 
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
@@ -79,8 +99,66 @@ def tools_node(state: AgentState):
     return {"messages": results}
 
 
+# The verify node's note to the agent is a user-role message with this name,
+# so it can be told apart from what the user actually typed.
+VERIFIER = "verifier"
+MAX_REWRITES = 1
+
+
+def text_of(message) -> str:
+    """A message's text, whether its content is a string or Bedrock's list of blocks."""
+    content = message.content
+    if isinstance(content, str):
+        return content
+    return "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+
+
+def _is_user(message) -> bool:
+    return message.type == "human" and message.name != VERIFIER
+
+
+def verify_node(state: AgentState):
+    """Check the final answer's figures against the tool results before it's final.
+
+    A figure no tool returned sends the answer back to the agent once, with
+    the list of figures to fix. Once the answer passes (or the rewrite is
+    spent), the rejected draft and the note are removed from the
+    conversation, so memory keeps only the answer the user ended up with.
+    """
+    messages = state["messages"]
+    turn_start = max(i for i, m in enumerate(messages) if _is_user(m))
+    turn = messages[turn_start:]
+    answer = text_of(messages[-1])
+    sources = [text_of(m) for m in messages if m.type == "tool" or _is_user(m)]
+    missing = verify.unverified(answer, sources)
+    notes = [i for i, m in enumerate(turn) if m.type == "human" and m.name == VERIFIER]
+
+    if missing and len(notes) < MAX_REWRITES:
+        return {"messages": [HumanMessage(name=VERIFIER, content=(
+            "Automatic check: these figures in your answer don't appear in any tool "
+            f"result: {', '.join(missing)}. Every figure must come from a tool result; "
+            "work out growth rates, margins, and differences with the calculate tool. "
+            "Rewrite the full answer with those figures fixed or removed. Don't mention this check."
+        ))]}
+
+    rejected = [turn[i - 1] for i in notes] + [turn[i] for i in notes]
+    return {
+        "messages": [RemoveMessage(id=m.id) for m in rejected],
+        "number_check": {
+            "figures": len(verify.claims(answer)),
+            "unverified": missing,
+            "rewrites": len(notes),
+        },
+    }
+
+
+def after_verify(state: AgentState):
+    """Back to the agent if the verify node asked for a rewrite, otherwise done."""
+    last = state["messages"][-1]
+    return "agent" if last.type == "human" and last.name == VERIFIER else "end"
+
+
 if __name__ == "__main__":
-    from langchain_core.messages import HumanMessage
     from langgraph.graph.message import add_messages
 
     # Drive the two nodes by hand, merging each output into state with the

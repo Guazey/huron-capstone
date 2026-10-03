@@ -1,23 +1,26 @@
 from langgraph.graph import END, START, StateGraph
 
-from nodes import agent_node, tools_node
+from nodes import after_verify, agent_node, tools_node, verify_node
 from state import AgentState
 
 
 def should_continue(state: AgentState):
-    """The decision edge: loop back through tools, or stop."""
+    """The decision edge: run the tools the model asked for, or check its answer."""
     last_message = state["messages"][-1]
     if getattr(last_message, "tool_calls", None):
         return "tools"
-    return END
+    return "verify"
 
 
 graph = StateGraph(AgentState)
 graph.add_node("agent", agent_node)
 graph.add_node("tools", tools_node)
+graph.add_node("verify", verify_node)
 graph.add_edge(START, "agent")
-graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+graph.add_conditional_edges("agent", should_continue, {"tools": "tools", "verify": "verify"})
 graph.add_edge("tools", "agent")
+# A final answer is only final once its figures check out (verify.py).
+graph.add_conditional_edges("verify", after_verify, {"agent": "agent", "end": END})
 
 # Stateless: each invoke starts from the messages it's given (CLI, eval).
 app = graph.compile()

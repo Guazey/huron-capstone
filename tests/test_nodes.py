@@ -91,3 +91,17 @@ def test_history_is_trimmed_at_a_user_turn():
     assert len(kept) <= MAX_HISTORY_MESSAGES
     assert isinstance(kept[0], HumanMessage)
     assert kept[-1].content == "a19"
+
+
+def test_text_next_to_a_tool_call_is_dropped_but_the_call_kept():
+    from nodes import without_text
+
+    call = {"type": "tool_use", "name": "calculate", "input": {"expression": "1+1"}, "id": "c1"}
+    msg = AIMessage(
+        content=[{"type": "text", "text": "Revenue grew by"}, call],
+        tool_calls=[{"name": "calculate", "args": {"expression": "1+1"}, "id": "c1", "type": "tool_call"}],
+    )
+    out = without_text(msg)
+    assert out.content == [call]
+    assert out.tool_calls == msg.tool_calls
+    assert without_text(AIMessage("final answer")).content == "final answer"
