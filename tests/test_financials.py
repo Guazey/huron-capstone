@@ -54,13 +54,15 @@ def test_balance_sheet_dates_annual_only_from_10k():
     assert [f["val"] for f in financials.select_periods(assets, "quarterly", 4)] == [2, 1]
 
 
-def test_the_tag_with_the_newest_fact_wins():
+def test_tags_in_priority_order():
     us_gaap = {
         "Revenues": {"units": {"USD": [fact("2017-10-01", "2018-09-29", 265595000000)]}},
         "RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": REVENUE}},
     }
-    tag, unit, _ = financials._facts_for(us_gaap, "revenue")
-    assert (tag, unit) == ("RevenueFromContractWithCustomerExcludingAssessedTax", "USD")
+    tags = financials._tags_for(us_gaap, "revenue")
+    assert [(t, u) for t, u, _ in tags] == [
+        ("RevenueFromContractWithCustomerExcludingAssessedTax", "USD"), ("Revenues", "USD"),
+    ]
 
 
 @pytest.fixture
@@ -80,9 +82,38 @@ def test_tool_shows_exact_value_period_form_and_filing_link(apple):
     assert lines[0] == "Apple Inc. (AAPL) annual figures as reported to the SEC (XBRL), newest first:"
     assert lines[2] == ("- FY2025 (ended 2025-09-27): $416,161,000,000 ($416.16B), 10-K filed 2025-10-31 "
                         "<https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/>")
-    assert "- Fiscal year ended 2025-09-27: $7.46 per share, 10-K filed 2025-10-31" in out
+    # EPS facts carry no fiscal tags here; the label comes from revenue's fact for the same period.
+    assert "- FY2025 (ended 2025-09-27): $7.46 per share, 10-K filed 2025-10-31" in out
     assert "-$1,234,000,000 (-$1.23B)" in out
     assert lines[-1] == "Not reported under a standard tag: cash"
+
+
+def test_restated_value_shows_what_was_first_reported(apple):
+    out = get_financials.invoke({"ticker": "AAPL", "metrics": ["revenue"]})
+    assert ("- FY2024 (ended 2024-09-28): $391,000,000,000 ($391.00B), 10-K filed 2025-10-31 "
+            "<https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/>; restated: originally "
+            "$391,035,000,000 ($391.04B) in the 10-K filed 2024-11-01 "
+            "<https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/>") in out
+
+
+def test_fiscal_year_limits_history(apple):
+    out = get_financials.invoke({"ticker": "AAPL", "metrics": ["revenue"], "fiscal_year": 2024})
+    assert out.splitlines()[0] == "Apple Inc. (AAPL) annual figures through FY2024 as reported to the SEC (XBRL), newest first:"
+    assert "FY2025" not in out and "FY2024 (ended 2024-09-28)" in out
+
+
+def test_label_more_than_a_year_off_is_dropped():
+    # A pre-XBRL year first appears as a comparison in a filing two years later.
+    old = [fact("2008-09-28", "2009-09-26", 1, fy=2011, fp="FY")]
+    assert financials.select_periods(old, "annual", 1)[0]["fiscal"] is None
+
+
+def test_labels_come_from_any_tag_for_the_period():
+    new_tag = [fact("2015-07-01", "2016-06-30", 5, filed="2018-08-03", fy=2018, fp="FY")]
+    other = {"Revenues": {"units": {"USD": [fact("2015-07-01", "2016-06-30", 9, filed="2016-07-28", fy=2016, fp="FY")]}}}
+    labels = financials.first_reports(other)
+    assert financials.select_periods(new_tag, "annual", 1)[0]["fiscal"] is None
+    assert financials.select_periods(new_tag, "annual", 1, labels=labels)[0]["fiscal"] == "FY2016"
 
 
 def test_tool_quarterly_explains_missing_q4(apple):
@@ -112,3 +143,28 @@ def test_missing_user_agent_refuses_to_call_the_sec(monkeypatch):
     monkeypatch.delenv("SEC_USER_AGENT", raising=False)
     with pytest.raises(RuntimeError):
         financials._get_json("https://data.sec.gov/x")
+
+
+def test_more_complete_tag_wins_for_a_period_even_if_a_partial_one_is_newer(monkeypatch):
+    # AMD: DepreciationDepletionAndAmortization $167M vs Depreciation $94M for FY2015.
+    da = [fact("2014-12-28", "2015-12-26", 167000000, filed="2016-02-18", fy=2015, fp="FY")]
+    dep = [fact("2014-12-28", "2015-12-26", 94000000, filed="2016-02-18", fy=2015, fp="FY"),
+           fact("2025-12-28", "2026-12-26", 1, filed="2027-02-01", fy=2026, fp="FY")]
+    monkeypatch.setattr(financials, "lookup_cik", lambda s: {"cik": 2488, "name": "AMD"})
+    monkeypatch.setattr(financials, "company_facts", lambda cik: {"facts": {"us-gaap": {
+        "DepreciationDepletionAndAmortization": {"units": {"USD": da}},
+        "Depreciation": {"units": {"USD": dep}},
+    }}})
+    values = financials.get_financials("AMD", ["depreciation_amortization"], through_fy=2015)["metrics"][
+        "depreciation_amortization"]["values"]
+    assert [(v["value"], v["tag"]) for v in values] == [(167000000, "DepreciationDepletionAndAmortization")]
+
+
+def test_a_value_tagged_years_later_does_not_override_the_statements():
+    # General Mills: FY2022 net income $2,707.3M in the 10-Ks that show FY2022;
+    # a 2026 filing tagged it with the figure including noncontrolling interests.
+    facts = [fact("2021-05-31", "2022-05-29", 2707300000, filed="2022-06-30", fy=2022, fp="FY"),
+             fact("2021-05-31", "2022-05-29", 2707300000, filed="2024-06-26", fy=2024, fp="FY"),
+             fact("2021-05-31", "2022-05-29", 2735000000, filed="2026-08-03", fy=2026, fp="FY")]
+    [picked] = financials.select_periods(facts, "annual", 1)
+    assert picked["val"] == 2707300000 and picked["original"] is None

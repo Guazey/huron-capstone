@@ -80,7 +80,8 @@ Each Python file does one job, and most can be run on their own
 | `sec_edgar.py` | Loads recent 10-K/10-Q filings for a watchlist into S3 and runs Knowledge Base ingestion |
 | `knowledge.py` | Searches the filings Knowledge Base |
 | `main.py` | Asks one question from the terminal and prints every step |
-| `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance, SEC figures and math, fiscal labels, and every figure passing the verify step |
+| `eval.py` | Live checks against the real model: right tools, no invented numbers or links, sources cited, follow-ups, prompt-injection resistance, SEC figures and math, fiscal labels, and every figure passing the verify step. Scored by category |
+| `evals/` | `financebench.py`: FinanceBench's numeric 10-K questions, graded by code. `results.py`: per-run scores (pass rate by category, latency, tokens, cost, verifier rewrites) saved to `evals/history/`, and the trend report |
 | `tests/` | Unit tests with the network and model stubbed; run in CI |
 | `extension/` | The Chrome side panel; its `src/` is the shared UI, with host specifics behind `platform.ts` |
 | `desktop/` | The same UI as a Tauri menu bar app (macOS/Windows): always on top, docked right, toggled with Alt+Shift+M; signs in through the system browser and a loopback redirect |
@@ -95,7 +96,9 @@ aws configure          # credentials stay in ~/.aws, never in this folder
 cp .env.example .env   # set the region, model ID, and SEC_USER_AGENT
 python main.py "What's the price of AAPL?"
 pytest                 # unit tests, no AWS needed
-python eval.py         # live eval; calls Bedrock, Yahoo, and the Knowledge Base
+python eval.py         # live eval; calls Bedrock, Yahoo, SEC, and the Knowledge Base
+python eval.py --suite financebench   # FinanceBench numeric questions; --suite all for both
+python -m evals.results               # score trend across saved runs
 python app.py          # serves the agent on localhost:8080 like AgentCore does
 ```
 
@@ -127,6 +130,33 @@ desktop/release.sh 0.1.1                                   # bump, sign, build (
 
 Keep `~/.tauri/market-sidebar.key` and its password out of the repo and backed
 up: losing the key means installed copies can't update to anything newer.
+
+## Evals
+
+Every change to the prompt, model, tools, or graph is measured, not eyeballed.
+Two suites run against the real model and data:
+
+- **behavior** (16 cases): right tool, no invented numbers or links, sources
+  cited, follow-ups, prompt injection, refusing advice, SEC figures, math,
+  fiscal labels. Scored by category.
+- **financebench** (48 questions): the numeric questions from
+  [FinanceBench](https://github.com/patronus-ai/financebench), a public
+  benchmark of questions about real 10-Ks ("FY2019 fixed asset turnover for
+  CVS"). The agent finds the company, pulls the fiscal years it needs, does
+  the math, and ends with `Answer: <number>`. Code grades it at the expected
+  answer's precision, with no AI judge.
+
+Each run is saved to `evals/history/` with its commit, pass rate by category,
+latency, tokens, estimated cost, and verifier rewrites; `python -m
+evals.results` prints the trend. The **eval** GitHub Actions workflow runs both
+suites weekly and on demand (Actions → eval → Run workflow), posts the scores
+on the run page, and commits them to `evals/history/`. It reaches Bedrock
+through a role that trusts only this repo's `main` branch, via GitHub's OIDC
+token, so no AWS keys live in GitHub ([ADR-0006](docs/decisions/0006-scored-evals-in-ci.md)).
+
+One-time setup (after `infra/deploy.sh`): an admin attaches the policy that
+`infra/render_policies.sh` writes to `infra/deployer-ci-policy.json`, then
+`infra/ci_role.sh` creates the role and sets the repo's secrets.
 
 ## Known limits
 

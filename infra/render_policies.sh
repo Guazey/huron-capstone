@@ -30,4 +30,5 @@ PY
 
 render infra/boundary-policy.template.json infra/boundary-policy.json
 render infra/deployer-policy.template.json infra/deployer-policy.json
+render infra/deployer-ci-policy.template.json infra/deployer-ci-policy.json  # for infra/ci_role.sh
 echo "Pool pinned: ${POOL_ID:-no (not deployed yet)}; KB pinned: ${KB_ID:-no (not deployed yet)}"

@@ -244,7 +244,7 @@ def _fmt_reported(value, unit: str) -> str:
 def _period_label(v: dict, period: str) -> str:
     """'FY2025 (ended 2025-09-27)': the company's fiscal name when its filing gives one, else dates."""
     if v["start"] is None:
-        return f"As of {v['end']}"
+        return f"{v['fiscal']} ({v['end']})" if v.get("fiscal") else f"As of {v['end']}"
     dates = f"ended {v['end']}" if period == "annual" else f"{v['start']} to {v['end']}"
     if v.get("fiscal"):
         return f"{v['fiscal']} ({dates})"
@@ -256,29 +256,38 @@ def get_financials(
     ticker: str,
     metrics: list[financials.Metric] | None = None,
     period: financials.PeriodType = "annual",
+    fiscal_year: int | None = None,
 ) -> str:
-    """Financial statement figures exactly as the company reported them to the SEC (XBRL): revenue, profit, EPS, cash flow, R&D, cash, assets, debt, equity. Each value has its period, form, filing date, and filing link. Covers any US-listed company that files 10-Ks.
+    """Financial statement figures exactly as the company reported them to the SEC (XBRL): income statement (revenue, COGS, operating and net income, EPS), cash flow (operating cash flow, capex, D&A, dividends), and balance sheet (cash, receivables, inventory, current assets, PP&E, total assets, payables, current liabilities, debt, equity). Each value has its fiscal period, form, filing date, and filing link. Covers any US company that files 10-Ks, back to about 2010.
 
-    Use this for reported results and history ("what was revenue last year",
-    "how have margins changed"). Defaults to revenue, net income, diluted
-    EPS, and operating cash flow for the last 4 fiscal years.
+    Returns 4 periods, newest first. For history, set fiscal_year to the
+    latest year wanted: fiscal_year=2018 returns FY2015-FY2018, enough for a
+    3-year average or a year-over-year change. Defaults to revenue, net
+    income, diluted EPS, and operating cash flow for the latest 4 years.
     """
     symbol = market_data.normalize_ticker(ticker)
     if symbol is None:
         return f"No financials found for {ticker}: not a valid ticker symbol"
     wanted = list(dict.fromkeys(metrics or financials.DEFAULT_METRICS))
-    f = financials.get_financials(symbol, wanted, period)
+    f = financials.get_financials(symbol, wanted, period, through_fy=fiscal_year)
     if f is None:
         return (f"No SEC financial data for {symbol}: it isn't a US company that files 10-Ks "
                 "(funds, ETFs, and foreign filers aren't covered)")
     if not f["metrics"]:
         return f"{f['name']} ({symbol}) doesn't report {', '.join(wanted)} in its SEC filings"
-    lines = [f"{f['name']} ({symbol}) {period} figures as reported to the SEC (XBRL), newest first:"]
+    scope = f" through FY{fiscal_year}" if fiscal_year else ""
+    lines = [f"{f['name']} ({symbol}) {period} figures{scope} as reported to the SEC (XBRL), newest first:"]
     for metric, data in f["metrics"].items():
         lines.append(f"{financials.LABELS[metric]} [us-gaap:{data['tag']}]:")
         for v in data["values"]:
-            lines.append(f"- {_period_label(v, period)}: {_fmt_reported(v['value'], data['unit'])}, "
-                         f"{v['form']} filed {v['filed']} <{v['url']}>")
+            other_tag = f" [us-gaap:{v['tag']}]" if v["tag"] != data["tag"] else ""
+            line = (f"- {_period_label(v, period)}: {_fmt_reported(v['value'], v['unit'])}{other_tag}, "
+                    f"{v['form']} filed {v['filed']} <{v['url']}>")
+            if v["original"]:
+                o = v["original"]
+                line += (f"; restated: originally {_fmt_reported(o['value'], v['unit'])} in the "
+                         f"{o['form']} filed {o['filed']} <{o['url']}>")
+            lines.append(line)
     missing = [m for m in wanted if m not in f["metrics"]]
     if missing:
         lines.append(f"Not reported under a standard tag: {', '.join(missing)}")

@@ -63,6 +63,12 @@ if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name "${NAME}-kb-read" || true
   aws iam delete-role --role-name "$ROLE_NAME" && echo "deleted role"
 fi
+# The CI eval role (infra/ci_role.sh). The GitHub OIDC provider is left in
+# place: it is account-wide and other projects may trust it.
+if aws iam get-role --role-name "${NAME}-eval-ci" >/dev/null 2>&1; then
+  aws iam delete-role-policy --role-name "${NAME}-eval-ci" --policy-name "${NAME}-eval-ci-invoke" || true
+  aws iam delete-role --role-name "${NAME}-eval-ci" && echo "deleted CI eval role"
+fi
 if aws ecr describe-repositories --repository-names "$NAME" >/dev/null 2>&1; then
   aws ecr delete-repository --repository-name "$NAME" --force >/dev/null && echo "deleted ECR repo"
 fi

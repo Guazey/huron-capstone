@@ -1,0 +1,880 @@
+{
+ "run_at": "2026-10-03T23:39:01+00:00",
+ "commit": "773b6ff-dirty",
+ "suite": "financebench",
+ "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+ "summary": {
+  "passed": 45,
+  "total": 48,
+  "pass_rate": 0.9375,
+  "by_category": {
+   "financebench": {
+    "passed": 45,
+    "total": 48
+   }
+  },
+  "latency_ms_p50": 19864,
+  "latency_ms_p95": 62041,
+  "input_tokens": 775927,
+  "output_tokens": 22652,
+  "est_cost_usd": 0.8892,
+  "rewrites": 4,
+  "figures_unverified": 0
+ },
+ "cases": [
+  {
+   "id": "financebench_id_03029",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 14560,
+   "input_tokens": 11399,
+   "output_tokens": 272,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on 3M Company's (MMM) SEC-reported cash flow statement figures, the FY2018 capital expenditure amount was $1,577,000,000.\n\nAnswer: 1,577"
+  },
+  {
+   "id": "financebench_id_04672",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 18838,
+   "input_tokens": 11410,
+   "output_tokens": 341,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 2,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on 3M Company's (MMM) SEC-reported balance sheet figures, the year end FY2018 net property, plant and equipment (PPNE) is $8.74 billion, as reported in their 10-K filed on February 6, 2020.\n\nSources: [3M FY2018 balance sheet (10-K, filed 2020-02-06)](https://www.sec.gov/Archives/edgar/data/66740/000155837020000581/)\n\nAnswer: $8.74 billion"
+  },
+  {
+   "id": "financebench_id_04735",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 19484,
+   "input_tokens": 12136,
+   "output_tokens": 367,
+   "tools": [
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 4,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Adobe's SEC-reported figures for FY2015 (ended November 27, 2015):\n\n- Operating cash flow: $1,469,502,000\n- Total current liabilities: $2,213,556,000\n\nOperating cash flow ratio = $1,469,502,000 / $2,213,556,000 = 0.6639, which rounds to **0.66**.\n\nSources: [ADBE FY2015 financials](https://www.sec.gov/Archives/edgar/data/796343/000079634318000015/)\n\nAnswer: 0.66"
+  },
+  {
+   "id": "financebench_id_07507",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 22594,
+   "input_tokens": 15637,
+   "output_tokens": 463,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Adobe's SEC-reported income statement figures:\n\n- **FY2015 operating income**: $903,095,000\n- **FY2016 operating income**: $1,493,602,000\n\nYear-over-year change: (1,493,602,000 \u2212 903,095,000) / 903,095,000 \u00d7 100 = 65.4%\n\nSources: [Adobe FY2016 and FY2015 operating income (10-K filed 2019-01-25 and 2018-01-22)](https://www.sec.gov/Archives/edgar/data/796343/000079634319000019/)\n\nAnswer: 65.4"
+  },
+  {
+   "id": "financebench_id_03856",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 29560,
+   "input_tokens": 16517,
+   "output_tokens": 432,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 4,
+   "figures_unverified": 0,
+   "rewrites": 1,
+   "answer": "Based on Adobe's (ADBE) SEC-reported financial figures:\n\n**FY2017 Operating Cash Flow Ratio Calculation:**\n\nOperating Cash Flow Ratio = Operating Cash Flow / Current Liabilities\n\n- Operating Cash Flow (FY2017): $2,912,853,000\n- Total Current Liabilities (FY2017 year end): $3,527,457,000\n\nRatio = $2,912,853,000 / $3,527,457,000 = 0.83\n\nSources: [ADBE Financials](https://www.sec.gov/Archives/edgar/data/796343/000079634320000013/)\n\nAnswer: 0.83"
+  },
+  {
+   "id": "financebench_id_10420",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 29622,
+   "input_tokens": 16666,
+   "output_tokens": 509,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 7,
+   "figures_unverified": 0,
+   "rewrites": 1,
+   "answer": "Based on AES Corporation's SEC-reported figures:\n\n- **FY2022 Net Income:** -$546,000,000 (a loss)\n- **FY2022 Total Assets:** $38,363,000,000\n- **FY2021 Total Assets:** $32,963,000,000\n\n**ROA Calculation:**\nAverage Total Assets = ($32,963,000,000 + $38,363,000,000) \u00f7 2\n\nROA = -$546,000,000 \u00f7 average total assets \u00d7 100 = -1.53%\n\nSources: [AES financials](https://www.sec.gov/Archives/edgar/data/874761/000087476125000013/)\n\nAnswer: -1.53"
+  },
+  {
+   "id": "financebench_id_06655",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 44711,
+   "input_tokens": 32710,
+   "output_tokens": 797,
+   "tools": [
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 16,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Amazon's SEC-reported figures:\n\n**FY2017 Balance Sheet & P&L Data:**\n- FY2017 Accounts Payable: $34,616,000,000\n- FY2016 Accounts Payable: $25,309,000,000\n- FY2017 Inventory: $16,047,000,000\n- FY2016 Inventory: $11,461,000,000\n- FY2017 Cost of Revenue (COGS): $111,934,000,000\n\n**Calculation:**\n\n1. Average accounts payable (FY2016\u2013FY2017): ($34,616M + $25,309M) / 2 = $29,962.5M\n2. Change in inventory (FY2017 \u2212 FY2016): $16,047M \u2212 $11,461M = $4,586M\n3. COGS + change in inventory: $111,934M + $4,586M = $116,520M\n4. DPO = 365 \u00d7 ($29,962.5M / $116,520M) = 93.86 days\n\n**Answer: 93.86**\n\nSou"
+  },
+  {
+   "id": "financebench_id_08135",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 17138,
+   "input_tokens": 11509,
+   "output_tokens": 375,
+   "tools": [
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 7,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Amazon's SEC-reported figures from their income statements:\n\n- FY2017 revenue: $177,866,000,000\n- FY2016 revenue: $135,987,000,000\n\nYear-over-year change: ($177,866,000,000 \u2212 $135,987,000,000) / $135,987,000,000 \u00d7 100 = 30.7963%\n\nRounded to one decimal place: **30.8%**\n\nSources: [AMZN financials](https://www.sec.gov/Archives/edgar/data/1018724/000101872420000004/)\n\nAnswer: 30.8"
+  },
+  {
+   "id": "financebench_id_08286",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 11152,
+   "input_tokens": 7365,
+   "output_tokens": 280,
+   "tools": [
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Amazon's SEC-reported financial statements, the FY2019 net income (the net income line on the income statement) as reported to the SEC is:\n\n**$11,588,000,000**\n\nThis figure is reported as \"Net Income [us-gaap:NetIncomeLoss]\" for the fiscal year ended 2019-12-31 in Amazon's 10-K filing ([10-K filed 2022-02-04](https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/)).\n\nAnswer: 11,588"
+  },
+  {
+   "id": "financebench_id_03882",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 19496,
+   "input_tokens": 11459,
+   "output_tokens": 420,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Amcor plc's (AMCR) SEC-reported balance sheet figures, as a financial analyst focusing exclusively on the balance sheet data presented:\n\nAmcor's **accounts receivable, net** as of the **FY2020 year end (June 30, 2020)** was **$1,616 million** in USD, as reported in the company's 10-K filed on August 24, 2021. Note that the restated figure (originally $1,615.9 million when initially filed on August 27, 2020) was adjusted slightly upon restatement.\n\nThis figure represents net accounts receivable on Amcor's consolidated balance sheet at fiscal year-end 2020.\n\n**Sources:** [Amcor financia"
+  },
+  {
+   "id": "financebench_id_03069",
+   "category": "financebench",
+   "passed": false,
+   "reason": "answered 2.36, expected 4.2%",
+   "latency_ms": 22722,
+   "input_tokens": 16040,
+   "output_tokens": 437,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 5,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on AMD's SEC-reported financials for FY2015:\n\n- **Revenue**: $3,991,000,000\n- **Depreciation and Amortization (from cash flow statement)**: $94,000,000\n\nThe D&A margin is calculated as:\n$$\\frac{\\$94M}{\\$3,991M} \\times 100 = 2.36\\%$$\n\n**Sources:** [AMD FY2015 10-K](https://www.sec.gov/Archives/edgar/data/2488/000000248818000042/)\n\n**Answer: 2.36%**"
+  },
+  {
+   "id": "financebench_id_05718",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 20232,
+   "input_tokens": 11384,
+   "output_tokens": 392,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on American Water Works' SEC-reported statement of cash flows, the company paid out **$389 million in cash dividends** for FY2020 (the fiscal year ended December 31, 2020).\n\nThis figure comes directly from the \"Payments of Dividends (Common Stock)\" line item in the cash flow statement filed in their 10-K on February 15, 2023.\n\nTo convert to the units requested:\n\n$389,000,000 \u00f7 1,000,000,000 = $0.389 billion\n\nAnswer: 0.389\n\nSources: [AWK FY2020 financials](https://www.sec.gov/Archives/edgar/data/1410636/000141063623000020/)"
+  },
+  {
+   "id": "financebench_id_04254",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 22972,
+   "input_tokens": 16468,
+   "output_tokens": 448,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 5,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on American Water Works' SEC-reported figures for FY2021:\n\n- **Operating Income (income statement)**: $1,196,000,000\n- **Depreciation and Amortization (cash flow statement)**: $636,000,000\n- **Unadjusted EBITDA**: $1,196,000,000 + $636,000,000 = $1,832,000,000\n\nAnswer: 1,832\n\nSources: [AWK FY2021 operating income and depreciation/amortization](https://www.sec.gov/Archives/edgar/data/1410636/000141063624000050/)"
+  },
+  {
+   "id": "financebench_id_02608",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 28559,
+   "input_tokens": 21762,
+   "output_tokens": 773,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 13,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Best Buy's SEC-reported figures:\n\n**FY2015** (ended 2015-01-31):\n- Revenue: $40,339,000,000\n- Net Income: $1,233,000,000\n- Net Profit Margin: 3.06%\n\n**FY2016** (ended 2016-01-30):\n- Revenue: $39,528,000,000\n- Net Income: $897,000,000\n- Net Profit Margin: 2.27%\n\n**FY2017** (ended 2017-01-28):\n- Revenue: $39,403,000,000\n- Net Income: $1,228,000,000\n- Net Profit Margin: 3.12%\n\nThe 3-year average net profit margin = (3.06% + 2.27% + 3.12%) / 3 = 2.8%\n\nSources: [Best Buy SEC filings (10-K)](https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000764478&type=10-K&dateb=&owner=exc"
+  },
+  {
+   "id": "financebench_id_04417",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 18319,
+   "input_tokens": 11352,
+   "output_tokens": 297,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Best Buy's SEC-reported balance sheet figures, the year-end FY2019 inventory was $5,409 million as of February 2, 2019, as reported in their 10-K filing.\n\nSources: [BBY balance sheet (10-K, filed 2020-03-23)](https://www.sec.gov/Archives/edgar/data/764478/000076447820000017/)\n\nAnswer: 5409"
+  },
+  {
+   "id": "financebench_id_04660",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 36532,
+   "input_tokens": 23691,
+   "output_tokens": 564,
+   "tools": [
+    "search_ticker",
+    "search_ticker",
+    "get_financials",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 4,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Block, Inc.'s (XYZ) SEC-reported balance sheet figures for FY2016 year end (2016-12-31):\n\n- **Total current assets:** $1,001,425,000\n- **Total current liabilities:** $577,464,000\n\n**Working capital ratio calculation:**\n$1,001,425,000 \u00f7 $577,464,000 = 1.73\n\nAnswer: 1.73\n\nSources: [Block, Inc. FY2016 balance sheet](https://www.sec.gov/Archives/edgar/data/1512673/000151267318000004/)"
+  },
+  {
+   "id": "financebench_id_03838",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 29425,
+   "input_tokens": 19553,
+   "output_tokens": 544,
+   "tools": [
+    "search_ticker",
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 6,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Block, Inc.'s (XYZ) SEC-reported revenue figures from its statements of income:\n\n- **FY2019 revenue:** $4,713,500,000\n- **FY2020 revenue:** $9,497,578,000\n\n**Growth calculation:**\n($9,497,578,000 \u2212 $4,713,500,000) / $4,713,500,000 \u00d7 100 = 101.5%\n\nBlock's total revenue more than doubled year-over-year from FY2019 to FY2020.\n\n**Sources:** [Block, Inc. annual financials (10-K filings)](https://www.sec.gov/Archives/edgar/data/1512673/000162828023004840/)\n\nAnswer: 101.5"
+  },
+  {
+   "id": "financebench_id_07661",
+   "category": "financebench",
+   "passed": false,
+   "reason": "answered 173.11, expected $382.00",
+   "latency_ms": 23917,
+   "input_tokens": 15192,
+   "output_tokens": 394,
+   "tools": [
+    "search_ticker",
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Block, Inc.'s (XYZ) SEC filings, the company generated **$173.11 million** in operating cash flow for FY2020 as reported in the most recent 10-K filing (filed 2023-02-23).\n\nNote: This figure reflects a restatement from the originally reported amount of $381.60 million in the prior 10-K filing (filed 2021-02-23). The restated figure of $173.11 million is the current SEC-reported number.\n\nAnswer: 173.11"
+  },
+  {
+   "id": "financebench_id_10285",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 11057,
+   "input_tokens": 7397,
+   "output_tokens": 238,
+   "tools": [
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Boeing's SEC-reported balance sheet figures, the net property, plant, and equipment at year end FY2018 was $12,645,000,000.\n\nSources: [Boeing FY2018 Balance Sheet (10-K filed 2020-01-31)](https://www.sec.gov/Archives/edgar/data/12927/000001292720000014/)\n\nAnswer: 12,645"
+  },
+  {
+   "id": "financebench_id_03473",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 30607,
+   "input_tokens": 21204,
+   "output_tokens": 652,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 8,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Coca-Cola's SEC-reported figures:\n\n**FY2017 Net Income:** $1,248,000,000\n**Average Total Assets (FY2016 and FY2017):** ($87,270,000,000 + $87,896,000,000) / 2 = $87,583,000,000\n\n**ROA Calculation:**\n$1,248,000,000 / $87,583,000,000 \u00d7 100 = 1.4249%\n\nRounded to two decimal places: **1.42%**\n\nSources: [KO financials](https://www.sec.gov/Archives/edgar/data/21344/000002134420000006/)\n\nAnswer: 1.42"
+  },
+  {
+   "id": "financebench_id_09724",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 62041,
+   "input_tokens": 9382,
+   "output_tokens": 220,
+   "tools": [
+    "calculate"
+   ],
+   "figures_checked": 6,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Coca-Cola's SEC-reported figures for FY2021:\n\n- **Revenue**: $38,655,000,000\n- **Cost of Revenue (COGS)**: $15,357,000,000\n\nCOGS % Margin = (COGS \u00f7 Revenue) \u00d7 100\n= ($15,357,000,000 \u00f7 $38,655,000,000) \u00d7 100\n= 39.73%\n\nAnswer: 39.73%\n\nSources: [KO FY2021 financials](https://www.sec.gov/Archives/edgar/data/21344/000002134424000009/)"
+  },
+  {
+   "id": "financebench_id_06272",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 8206,
+   "input_tokens": 16257,
+   "output_tokens": 462,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 5,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on The Coca-Cola Company's SEC-reported financials for FY2022:\n\n- **Net income attributable to shareholders (net income)**: $9,542,000,000\n- **Total cash dividends paid**: $7,616,000,000\n\n**Dividend payout ratio** = Dividends paid \u00f7 Net income = $7,616,000,000 \u00f7 $9,542,000,000 \u00d7 100 = 79.82%\n\nSources: [KO financials (FY2022)](https://www.sec.gov/Archives/edgar/data/21344/000002134425000047/)\n\nAnswer: 79.82"
+  },
+  {
+   "id": "financebench_id_10130",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 60003,
+   "input_tokens": 5806,
+   "output_tokens": 338,
+   "tools": [],
+   "figures_checked": 14,
+   "figures_unverified": 0,
+   "rewrites": 1,
+   "answer": "Using Corning's SEC-reported figures, I'll calculate FY2020 DPO:\n\n**Data from SEC filings:**\n- FY2020 Accounts Payable: $1,174,000,000\n- FY2019 Accounts Payable: $1,587,000,000\n- FY2020 Inventory: $2,438,000,000\n- FY2019 Inventory: $2,320,000,000\n- FY2020 COGS: $7,772,000,000\n\n**Calculations:**\n- Average Accounts Payable (FY2019\u2013FY2020): ($1,174,000,000 + $1,587,000,000) / 2 = $1,380,500,000\n- Change in Inventory (FY2019\u2013FY2020): $2,438,000,000 \u2212 $2,320,000,000 = $118,000,000\n- DPO: 365 \u00d7 ($1,380,500,000 / ($7,772,000,000 + $118,000,000)) = 63.86\n\nSources: [GLW SEC filings](https://www.sec.gov"
+  },
+  {
+   "id": "financebench_id_02981",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 10027,
+   "input_tokens": 26362,
+   "output_tokens": 716,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 13,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Corning's SEC-reported financial data:\n\n**Operating Income % Margin by year:**\n- FY2019: $1,306M / $11,503M = 11.4%\n- FY2020: $509M / $11,303M = 4.5%\n- FY2021: $2,112M / $14,082M = 15.0%\n\n**3-year average (FY2019-FY2021):** (11.4% + 4.5% + 15.0%) / 3 = 10.3%\n\nSources: [GLW annual financials](https://www.sec.gov/Archives/edgar/data/24741/000143774924003735/)\n\nAnswer: 10.3"
+  },
+  {
+   "id": "financebench_id_04209",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 6076,
+   "input_tokens": 11266,
+   "output_tokens": 278,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Costco's SEC-reported balance sheet figures, total assets at the end of FY2021 (fiscal year ended August 29, 2021) were $59,268,000,000.\n\nAnswer: 59,268"
+  },
+  {
+   "id": "financebench_id_05915",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 61812,
+   "input_tokens": 19950,
+   "output_tokens": 407,
+   "tools": [
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 8,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on CVS Health's SEC-reported figures:\n\n**FY2018 Revenue:** $194,579,000,000\n\n**PP&E (Net):**\n- FY2018: $11,349,000,000\n- FY2017: $10,292,000,000\n\n**Average PP&E (FY2017\u2013FY2018):**\n($11,349,000,000 + $10,292,000,000) / 2 = $10,820,500,000\n\n**Fixed Asset Turnover Ratio:**\n$194,579,000,000 / $10,820,500,000 = 17.98\n\nSources: [CVS Health financials](https://www.sec.gov/Archives/edgar/data/64803/000006480320000007/)\n\nAnswer: 17.98"
+  },
+  {
+   "id": "financebench_id_04103",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 72050,
+   "input_tokens": 38931,
+   "output_tokens": 1171,
+   "tools": [
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 15,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on General Mills' FY2019 SEC-reported financial figures:\n\n**Calculation:**\n\n1. **Average Inventory (FY2018\u2013FY2019):** $(1,559.3M + 1,642.2M) / 2 = $1,600.75M\n\n2. **Average Accounts Receivable (FY2018\u2013FY2019):** $(1,679.7M + 1,684.2M) / 2 = $1,681.95M\n\n3. **Average Accounts Payable (FY2018\u2013FY2019):** $(2,854.1M + 2,746.2M) / 2 = $2,800.15M\n\n4. **Inventory Change (FY2018\u2013FY2019):** $1,559.3M \u2212 $1,642.2M = \u2212$82.9M\n\n5. **DIO** = 365 \u00d7 $1,600.75M / $11,108.4M = **52.60 days**\n\n6. **DSO** = 365 \u00d7 $1,681.95M / $16,865.2M = **36.40 days**\n\n7. **DPO** = 365 \u00d7 $2,800.15M / ($11,108.4M \u2212 $82.9M) = "
+  },
+  {
+   "id": "financebench_id_03471",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 7303,
+   "input_tokens": 16219,
+   "output_tokens": 414,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 4,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on General Mills's statement of financial position as reported to the SEC for FY2020 (fiscal year ended May 31, 2020):\n\n- **Total current assets**: $5,121,300,000\n- **Total current liabilities**: $7,491,500,000\n\nWorking capital ratio = Total current assets \u00f7 Total current liabilities = $5,121,300,000 \u00f7 $7,491,500,000 = 0.68\n\nSources: [GIS financials](https://www.sec.gov/Archives/edgar/data/40704/000119312521204830/)\n\nAnswer: 0.68"
+  },
+  {
+   "id": "financebench_id_04854",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 57853,
+   "input_tokens": 9225,
+   "output_tokens": 193,
+   "tools": [
+    "calculate"
+   ],
+   "figures_checked": 5,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on General Mills' FY2020 SEC-reported statement of cash flows:\n\n- **Operating cash flow (FY2020):** $3,676.2 million\n- **Capital expenditures (FY2020):** $460.8 million\n\n**Free cash flow = $3,676.2M \u2212 $460.8M = $3,215.4 million**\n\nSources: [GIS financials](https://www.sec.gov/Archives/edgar/data/40704/000119312522185257/)\n\nAnswer: 3215.4"
+  },
+  {
+   "id": "financebench_id_10136",
+   "category": "financebench",
+   "passed": false,
+   "reason": "answered 0.55, expected 0.54",
+   "latency_ms": 8273,
+   "input_tokens": 16547,
+   "output_tokens": 557,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 2,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on General Mills' SEC-reported figures for FY2022 (ended May 29, 2022):\n\n- **Net income**: $2,735,000,000\n- **Total cash dividends paid**: $1,244,500,000\n\nThe retention ratio is calculated as:\n$$\\text{Retention Ratio} = \\frac{\\text{Net Income} - \\text{Dividends Paid}}{\\text{Net Income}} = \\frac{2,735,000,000 - 1,244,500,000}{2,735,000,000} = 0.545$$\n\n**Answer: 0.55**\n\nSources: [GIS financials](https://www.sec.gov/Archives/edgar/data/40704/000119312524168943/)"
+  },
+  {
+   "id": "financebench_id_10499",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 12407,
+   "input_tokens": 26089,
+   "output_tokens": 761,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 8,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Kraft Heinz's SEC-reported figures:\n\n- **FY2019 COGS**: $16,830,000,000\n- **FY2019 year-end inventory**: $2,721,000,000\n- **FY2018 year-end inventory**: $2,667,000,000\n- **Average inventory (FY2018\u2013FY2019)**: ($2,721,000,000 + $2,667,000,000) \u00f7 2 = $2,694,000,000\n\n**Inventory Turnover Ratio** = FY2019 COGS \u00f7 Average Inventory = $16,830,000,000 \u00f7 $2,694,000,000 = 6.2472\n\nRounded to two decimal places: **6.25**\n\nSources: [KHC financials](https://www.sec.gov/Archives/edgar/data/1637459/000163745921000009/)\n\nAnswer: 6.25"
+  },
+  {
+   "id": "financebench_id_04412",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 61331,
+   "input_tokens": 18267,
+   "output_tokens": 562,
+   "tools": [
+    "get_financials",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 8,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Lockheed Martin's SEC-reported figures:\n\n**FY2020 Revenue:** $65,398,000,000\n\n**Total Assets:**\n- FY2020 year end: $50,710,000,000\n- FY2019 year end: $47,528,000,000\n\n**Average Total Assets (FY2019\u2013FY2020):** ($50,710,000,000 + $47,528,000,000) / 2 = $49,119,000,000\n\n**Asset Turnover Ratio:** $65,398,000,000 / $49,119,000,000 = 1.33\n\nAnswer: 1.33\n\nSources: [LMT financials (10-K filed 2023-01-26)](https://www.sec.gov/Archives/edgar/data/936468/000093646823000009/)"
+  },
+  {
+   "id": "financebench_id_03031",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 6878,
+   "input_tokens": 16276,
+   "output_tokens": 448,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 5,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Lockheed Martin's FY2021 balance sheet as reported to the SEC:\n\n**Net Working Capital Calculation:**\n- Total Current Assets (as of 2021-12-31): $19,815,000,000\n- Total Current Liabilities (as of 2021-12-31): $13,997,000,000\n- Net Working Capital = $19,815,000,000 \u2212 $13,997,000,000 = $5,818,000,000\n\n**Answer: 5,818**\n\nSources: [Lockheed Martin FY2021 Balance Sheet](https://www.sec.gov/Archives/edgar/data/936468/000093646823000009/)"
+  },
+  {
+   "id": "financebench_id_03718",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 63507,
+   "input_tokens": 19792,
+   "output_tokens": 485,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Lockheed Martin's SEC-reported revenue figures from the statement of income:\n\n- **FY2020 revenue**: $65,398,000,000\n- **FY2022 revenue**: $65,984,000,000\n\nThe 2-year compound annual growth rate (CAGR) is calculated using the formula:\nCAGR = (Ending Value / Beginning Value)^(1/n) - 1\n\nWhere n = 2 years.\n\nThis yields: (65,984,000,000 / 65,398,000,000)^(1/2) - 1 = 0.0045 or 0.4% when expressed as a percent and rounded to one decimal place.\n\n**Sources:** [LMT 10-K filings](https://www.sec.gov/Archives/edgar/data/936468/000093646825000009/)\n\nAnswer: 0.4"
+  },
+  {
+   "id": "financebench_id_04171",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 7020,
+   "input_tokens": 11346,
+   "output_tokens": 286,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on MGM Resorts International's SEC-reported balance sheet figures, the year end FY2018 accounts payable was $302.58 million.\n\nSources: [MGM Resorts balance sheet](https://www.sec.gov/Archives/edgar/data/789570/000156459020007393/)\n\nAnswer: 302.58"
+  },
+  {
+   "id": "financebench_id_03849",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 60105,
+   "input_tokens": 5112,
+   "output_tokens": 197,
+   "tools": [],
+   "figures_checked": 13,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on MGM Resorts' SEC-reported figures:\n\n**FY2018:** Capex $1,486.84M \u00f7 Revenue $11,763.10M = 12.6%\n\n**FY2019:** Capex $739.01M \u00f7 Revenue $12,899.67M = 5.7%\n\n**FY2020:** Capex $270.58M \u00f7 Revenue $5,162.08M = 5.2%\n\n**3-Year Average:** (12.6% + 5.7% + 5.2%) \u00f7 3 = 7.9%\n\nSources: [MGM Resorts financials](https://www.sec.gov/Archives/edgar/data/789570/000078957023000008/)\n\nAnswer: 7.9"
+  },
+  {
+   "id": "financebench_id_04700",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 8073,
+   "input_tokens": 11332,
+   "output_tokens": 364,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 4,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Microsoft's SEC-reported figures from the statement of income (XBRL data), the FY2016 cost of goods and services sold (COGS) is **$32,780,000,000**, as reported in the 10-K filed on August 3, 2018 for the fiscal year ended June 30, 2016.\n\nTo convert to millions: $32,780,000,000 \u00f7 1,000,000 = $32,780 million.\n\n**Sources:** [MSFT Financials FY2016](https://www.sec.gov/Archives/edgar/data/789019/000156459018019062/)\n\nAnswer: $32,780 million"
+  },
+  {
+   "id": "financebench_id_04458",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 10128,
+   "input_tokens": 22097,
+   "output_tokens": 660,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 9,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "For Netflix's FY2015, I used the SEC-reported figures:\n\n- **Operating Income:** $305.83M\n- **Depreciation & Amortization (from cash flow statement):** $62.28M\n- **Revenue:** $6.78B\n\n**Unadjusted EBITDA** = Operating Income + D&A = $305.83M + $62.28M = $368.11M\n\n**EBITDA % Margin** = ($368.11M / $6,779.51M) \u00d7 100 = 5.43%\n\nAnswer: 5.43\n\nSources: [Netflix FY2015 SEC filings](https://www.sec.gov/Archives/edgar/data/1065280/000162828018000941/)"
+  },
+  {
+   "id": "financebench_id_03282",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 5914,
+   "input_tokens": 11351,
+   "output_tokens": 296,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Netflix's SEC-reported balance sheet figures, the company's total current liabilities at year end FY2017 (December 31, 2017) were **$5,466,312,000**.\n\nConverting to USD millions as requested:\n\n**Answer: 5,466.312**\n\nSource: [Netflix FY2017 10-K balance sheet](https://www.sec.gov/Archives/edgar/data/1065280/000106528019000043/)"
+  },
+  {
+   "id": "financebench_id_04302",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 60517,
+   "input_tokens": 18743,
+   "output_tokens": 546,
+   "tools": [
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 11,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Nike's SEC-reported figures for FY2016\u2013FY2018:\n\n**FY2016:** COGS $17.41B \u00f7 Revenue $32.38B = 53.759%\n**FY2017:** COGS $19.04B \u00f7 Revenue $34.35B = 55.424%\n**FY2018:** COGS $20.44B \u00f7 Revenue $36.40B = 56.161%\n\n**Three-year average:** (53.759 + 55.424 + 56.161) \u00f7 3 = 55.115%, which rounds to 55.1%\n\nAnswer: 55.1"
+  },
+  {
+   "id": "financebench_id_03531",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 5344,
+   "input_tokens": 11356,
+   "output_tokens": 294,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "According to Nike's SEC-filed balance sheet for FY2019 (year end May 31, 2019), total current assets were $16,525 million.\n\nSources: [Nike FY2019 balance sheet](https://www.sec.gov/Archives/edgar/data/320187/000032018720000047/)\n\nAnswer: 16,525"
+  },
+  {
+   "id": "financebench_id_04080",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 11773,
+   "input_tokens": 21172,
+   "output_tokens": 670,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 8,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Nike's SEC-reported figures:\n\n**FY2021 Cost of Revenue (COGS):** $24,576,000,000\n**FY2021 Ending Inventory:** $6,854,000,000\n**FY2020 Ending Inventory:** $7,367,000,000\n\n**Average Inventory (FY2020\u2013FY2021):** ($7,367,000,000 + $6,854,000,000) / 2 = $7,110,500,000\n\n**FY2021 Inventory Turnover Ratio:** $24,576,000,000 / $7,110,500,000 = 3.4563\n\nRounded to two decimal places: **3.46**\n\nAnswer: 3.46\n\nSources: [Nike financial statements](https://www.sec.gov/Archives/edgar/data/320187/000032018722000038/)"
+  },
+  {
+   "id": "financebench_id_04980",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 59366,
+   "input_tokens": 4268,
+   "output_tokens": 165,
+   "tools": [],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on PepsiCo's SEC-reported figures from the statement of cash flows, the FY2021 capital expenditure amount is **$4.625 billion**. This figure is reported as \"Payments to Acquire Productive Assets\" in the cash flow statement for the fiscal year ended December 25, 2021 ([10-K filed 2024-02-09](https://www.sec.gov/Archives/edgar/data/77476/000007747624000008/)).\n\nFrom an investment analyst perspective using only the cash flow statement, this capex figure represents the actual cash outflows PepsiCo spent on acquiring or constructing productive assets during fiscal year 2021.\n\n**Answer: 4.625*"
+  },
+  {
+   "id": "financebench_id_03620",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 11939,
+   "input_tokens": 27229,
+   "output_tokens": 727,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 9,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on PepsiCo's SEC-reported financials for FY2022 (ended December 31, 2022):\n\n**Calculation:**\n\n1. **Operating income (from income statement):** $11,512 million\n2. **Add: Depreciation and amortization (from cash flow statement):** $2,763 million\n3. **Unadjusted EBITDA:** $11,512M + $2,763M = $14,275 million\n4. **Less: Capital expenditures:** $5,207 million\n5. **Unadjusted EBITDA less capex:** $14,275M \u2212 $5,207M = $9,068 million\n\nSources: [PEP FY2022 financials](https://www.sec.gov/Archives/edgar/data/77476/000007747625000042/)\n\nAnswer: 9,068"
+  },
+  {
+   "id": "financebench_id_04481",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 56084,
+   "input_tokens": 5131,
+   "output_tokens": 269,
+   "tools": [],
+   "figures_checked": 10,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on PepsiCo's FY2022 SEC-reported figures:\n\n**FY2022 Unadjusted EBITDA Calculation:**\n\nFrom the income statement (P&L):\n- Operating Income: $11,512,000,000\n\nFrom the cash flow statement:\n- Depreciation and Amortization (D&A): $2,763,000,000\n\n**Unadjusted EBITDA** = Operating Income + D&A\n= $11,512,000,000 + $2,763,000,000\n= $14,275,000,000\n\n**Revenue** (FY2022): $86,392,000,000\n\n**Unadjusted EBITDA % Margin** = (Unadjusted EBITDA / Revenue) \u00d7 100\n= ($14,275,000,000 / $86,392,000,000) \u00d7 100\n= 16.52%\n\nSources: [PEP financials](https://www.sec.gov/Archives/edgar/data/77476/000007747625000042"
+  },
+  {
+   "id": "financebench_id_06247",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 14987,
+   "input_tokens": 28100,
+   "output_tokens": 1096,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 10,
+   "figures_unverified": 0,
+   "rewrites": 1,
+   "answer": "Based on Walmart's SEC-reported figures for FY2018:\n\n**Components:**\n- Average accounts payable (FY2017 and FY2018): ($41.43B + $46.09B) / 2 = $43.76B\n- Change in inventory (FY2018 vs FY2017): $43.78B - $43.05B = $737M\n- FY2018 COGS: $373.40B\n\n**Calculation:**\nDPO = 365 \u00d7 $43.76B / ($373.40B + $737M) = 42.69 days\n\n**Sources:**\n[Walmart FY2018 SEC financials](https://www.sec.gov/Archives/edgar/data/104169/000010416920000011/)\n\nAnswer: 42.69"
+  },
+  {
+   "id": "financebench_id_04784",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 56119,
+   "input_tokens": 4853,
+   "output_tokens": 196,
+   "tools": [],
+   "figures_checked": 14,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Walmart's SEC-reported figures:\n\n**FY2018 Operating Income Margin:**\n- Operating Income: $20,437,000,000\n- Revenue: $495,761,000,000\n- Margin: $20,437M / $495,761M \u00d7 100 = 4.1223%\n\n**FY2019 Operating Income Margin:**\n- Operating Income: $21,957,000,000\n- Revenue: $510,329,000,000\n- Margin: $21,957M / $510,329M \u00d7 100 = 4.3025%\n\n**Change from FY2018 to FY2019:**\n4.3025% \u2212 4.1223% = 0.1802%\n\nRounded to one decimal place: 0.2%\n\nAnswer: 0.2"
+  },
+  {
+   "id": "financebench_id_06741",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 12140,
+   "input_tokens": 32617,
+   "output_tokens": 879,
+   "tools": [
+    "search_ticker",
+    "get_financials",
+    "calculate",
+    "calculate",
+    "calculate",
+    "calculate"
+   ],
+   "figures_checked": 13,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on Walmart's SEC-reported figures for FY2018\u2013FY2020:\n\n**Unadjusted EBITDA % Margin Calculation:**\n\nUnadjusted EBITDA = Operating Income + Depreciation & Amortization\n\n- **FY2018** (ended 2018-01-31): ($20,437M + $10,529M) / $495,761M = 6.2%\n- **FY2019** (ended 2019-01-31): ($21,957M + $10,678M) / $510,329M = 6.4%\n- **FY2020** (ended 2020-01-31): ($20,568M + $10,987M) / $519,926M = 6.1%\n\n**3-Year Average:** (6.2462 + 6.3949 + 6.0691) / 3 = 6.2%\n\nSources: [Walmart FY2018\u2013FY2020 financials](https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000104169&type=10-K&dateb=&owner=excl"
+  }
+ ]
+}

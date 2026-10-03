@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CiRoleOnlyWithBoundary",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:PutRolePermissionsBoundary"
+      ],
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-eval-ci",
+      "Condition": {"StringEquals": {"iam:PermissionsBoundary": "arn:aws:iam::{{ACCOUNT_ID}}:policy/capstone-sidebar-boundary"}}
+    },
+    {
+      "Sid": "CiRoleReadTrustAndDelete",
+      "Effect": "Allow",
+      "Action": ["iam:GetRole", "iam:GetRolePolicy", "iam:UpdateAssumeRolePolicy", "iam:DeleteRole"],
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-eval-ci"
+    },
+    {
+      "Sid": "NeverLoosenTheCiBoundary",
+      "Effect": "Deny",
+      "Action": "iam:DeleteRolePermissionsBoundary",
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:role/capstone-sidebar-eval-ci"
+    },
+    {
+      "Sid": "GithubOidcProvider",
+      "Effect": "Allow",
+      "Action": ["iam:CreateOpenIDConnectProvider", "iam:GetOpenIDConnectProvider"],
+      "Resource": "arn:aws:iam::{{ACCOUNT_ID}}:oidc-provider/token.actions.githubusercontent.com"
+    }
+  ]
+}

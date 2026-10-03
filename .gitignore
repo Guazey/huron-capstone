@@ -16,4 +16,8 @@ desktop/src-tauri/gen/
 *.code-workspace
 # rendered with account IDs by infra/render_policies.sh
 infra/deployer-policy.json
+infra/deployer-ci-policy.json
 infra/boundary-policy.json
+
+# FinanceBench questions, downloaded at run time (evals/financebench.py)
+evals/.cache/

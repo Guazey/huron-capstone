@@ -1,0 +1,79 @@
+name: eval
+
+# The live eval: the real model on Bedrock, real market data, real SEC filings.
+# It costs money (about $0.90 a full run), so it runs when asked and weekly,
+# never on every push. AWS access is a 1-hour role session from GitHub's OIDC
+# token (infra/ci_role.sh): no AWS keys are stored in this repository.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "behavior (16 cases), financebench (48 questions), or all"
+        type: choice
+        options: [all, behavior, financebench]
+        default: all
+      limit:
+        description: "Only the first N cases of each suite (blank = all)"
+        type: string
+        default: ""
+  schedule:
+    - cron: "0 14 * * 1"  # Mondays 14:00 UTC
+
+permissions:
+  id-token: write   # ask GitHub for the OIDC token AWS trusts
+  contents: write   # commit the scores to evals/history/
+
+concurrency:
+  group: eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    # The AWS role only trusts main (infra/ci_role.sh); fail fast elsewhere.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_EVAL_ROLE_ARN }}
+          role-session-name: capstone-eval-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Run the eval
+        id: eval
+        env:
+          # Inputs reach the shell as variables, never pasted into the script.
+          SUITE: ${{ inputs.suite || 'all' }}
+          LIMIT: ${{ inputs.limit }}
+          BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+          KB_ID: ${{ secrets.KB_ID }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: |
+          args=(--suite "$SUITE" --min-pass-rate 0.8)
+          [[ "$LIMIT" =~ ^[0-9]+$ ]] && args+=(--limit "$LIMIT")
+          python eval.py "${args[@]}"
+
+      - name: Scores
+        if: always()
+        run: python -m evals.results >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the scores to evals/history/
+        if: always() && hashFiles('evals/history/*.json') != ''
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evals/history
+          git diff --cached --quiet && exit 0
+          git commit -m "Eval scores: ${SUITE} ($(date -u +%Y-%m-%d)) [skip ci]"
+          git pull --rebase --quiet
+          git push

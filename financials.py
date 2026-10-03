@@ -25,9 +25,11 @@ FACTS_TTL_SECONDS = 3600
 TICKERS_TTL_SECONDS = 86400
 
 Metric = Literal[
-    "revenue", "gross_profit", "operating_income", "net_income", "eps_diluted",
-    "operating_cash_flow", "capex", "research_and_development",
-    "cash", "total_assets", "total_liabilities", "stockholders_equity", "long_term_debt",
+    "revenue", "cost_of_revenue", "gross_profit", "operating_income", "net_income", "eps_diluted",
+    "research_and_development", "operating_cash_flow", "capex", "depreciation_amortization",
+    "dividends_paid", "cash", "accounts_receivable", "inventory", "current_assets", "ppe_net",
+    "total_assets", "accounts_payable", "current_liabilities", "total_liabilities",
+    "long_term_debt", "stockholders_equity",
 ]
 METRICS = get_args(Metric)
 DEFAULT_METRICS: tuple[Metric, ...] = ("revenue", "net_income", "eps_diluted", "operating_cash_flow")
@@ -39,26 +41,42 @@ PeriodType = Literal["annual", "quarterly"]
 CONCEPTS: dict[str, tuple[str, ...]] = {
     "revenue": ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues",
                 "SalesRevenueNet", "RevenueFromContractWithCustomerIncludingAssessedTax"),
+    "cost_of_revenue": ("CostOfGoodsAndServicesSold", "CostOfRevenue", "CostOfGoodsSold",
+                        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization"),
     "gross_profit": ("GrossProfit",),
     "operating_income": ("OperatingIncomeLoss",),
     "net_income": ("NetIncomeLoss", "ProfitLoss"),
     "eps_diluted": ("EarningsPerShareDiluted",),
     "operating_cash_flow": ("NetCashProvidedByUsedInOperatingActivities",),
-    "capex": ("PaymentsToAcquirePropertyPlantAndEquipment",),
+    "capex": ("PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"),
     "research_and_development": ("ResearchAndDevelopmentExpense",),
+    "depreciation_amortization": ("DepreciationDepletionAndAmortization", "DepreciationAndAmortization",
+                                  "DepreciationAmortizationAndAccretionNet", "Depreciation"),
+    "dividends_paid": ("PaymentsOfDividends", "PaymentsOfDividendsCommonStock"),
     "cash": ("CashAndCashEquivalentsAtCarryingValue",),
+    "accounts_receivable": ("AccountsReceivableNetCurrent", "ReceivablesNetCurrent"),
+    "inventory": ("InventoryNet", "InventoryFinishedGoodsNetOfReserves"),
+    "current_assets": ("AssetsCurrent",),
+    "ppe_net": ("PropertyPlantAndEquipmentNet",
+                "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization"),
     "total_assets": ("Assets",),
+    "accounts_payable": ("AccountsPayableCurrent", "AccountsPayableTradeCurrent"),
+    "current_liabilities": ("LiabilitiesCurrent",),
     "total_liabilities": ("Liabilities",),
     "stockholders_equity": ("StockholdersEquity",),
     "long_term_debt": ("LongTermDebtNoncurrent", "LongTermDebt"),
 }
 LABELS = {
-    "revenue": "Revenue", "gross_profit": "Gross profit", "operating_income": "Operating income",
-    "net_income": "Net income", "eps_diluted": "EPS (diluted)",
-    "operating_cash_flow": "Operating cash flow", "capex": "Capital expenditures",
-    "research_and_development": "R&D expense", "cash": "Cash and equivalents",
-    "total_assets": "Total assets", "total_liabilities": "Total liabilities",
-    "stockholders_equity": "Stockholders' equity", "long_term_debt": "Long-term debt",
+    "revenue": "Revenue", "cost_of_revenue": "Cost of revenue (COGS)", "gross_profit": "Gross profit",
+    "operating_income": "Operating income", "net_income": "Net income", "eps_diluted": "EPS (diluted)",
+    "research_and_development": "R&D expense", "operating_cash_flow": "Operating cash flow",
+    "capex": "Capital expenditures", "depreciation_amortization": "Depreciation and amortization (cash flow)",
+    "dividends_paid": "Dividends paid", "cash": "Cash and equivalents",
+    "accounts_receivable": "Accounts receivable, net", "inventory": "Inventory",
+    "current_assets": "Total current assets", "ppe_net": "Property, plant and equipment, net",
+    "total_assets": "Total assets", "accounts_payable": "Accounts payable",
+    "current_liabilities": "Total current liabilities", "total_liabilities": "Total liabilities",
+    "long_term_debt": "Long-term debt", "stockholders_equity": "Stockholders' equity",
 }
 UNITS = ("USD", "USD/shares")
 
@@ -113,11 +131,45 @@ def _days(fact: dict) -> int | None:
     return (date.fromisoformat(fact["end"]) - date.fromisoformat(fact["start"])).days
 
 
-def select_periods(facts: list[dict], period: PeriodType, count: int) -> list[dict]:
-    """The latest `count` distinct periods, newest first.
+def first_reports(us_gaap: dict) -> dict[tuple, dict]:
+    """(start, end) -> the earliest-filed fact for that period, across every tag the company files.
+
+    Fiscal labels come from here, not from one metric's facts: when a company
+    switches tags, a metric's first fact for an old period sits in a later
+    filing, but some other tag was reported for it in the period's own filing.
+    """
+    first: dict[tuple, dict] = {}
+    for concept in us_gaap.values():
+        for facts in (concept.get("units") or {}).values():
+            for f in facts:
+                key = (f.get("start"), f["end"])
+                if key not in first or f["filed"] < first[key]["filed"]:
+                    first[key] = f
+    return first
+
+
+# Financial statements compare three years (income, cash flow) or two
+# (balance sheet), so a period stays in the statements of the next two or
+# three 10-Ks. A restatement there is real. A value tagged for the period in
+# a filing years later comes from some other schedule, and has been wrong:
+# General Mills' 2026 10-K tagged FY2022 net income with the figure that
+# includes noncontrolling interests.
+STATEMENT_WINDOW_DAYS = 3 * 365 + 120  # three fiscal years, plus the 10-K filing lag
+
+
+def _in_statements(f: dict) -> bool:
+    return (date.fromisoformat(f["filed"]) - date.fromisoformat(f["end"])).days <= STATEMENT_WINDOW_DAYS
+
+
+def select_periods(facts: list[dict], period: PeriodType, count: int,
+                   through_fy: int | None = None, labels: dict[tuple, dict] | None = None) -> list[dict]:
+    """The latest `count` distinct periods, newest first, optionally ending at a fiscal year.
 
     The same period is reported again in later filings (as the prior-year
-    comparison, or restated); the most recently filed value wins.
+    comparison, or restated); the most recently filed value wins, and a
+    restated value keeps the one first reported as "original".
+    `labels` is first_reports() for the whole company; without it, fiscal
+    labels come from these facts alone.
     """
     def wanted(f):
         days = _days(f)
@@ -131,45 +183,64 @@ def select_periods(facts: list[dict], period: PeriodType, count: int) -> list[di
         if not wanted(f) or not isinstance(f.get("val"), (int, float)):
             continue
         key = (f.get("start"), f["end"])
-        if key not in latest or f["filed"] > latest[key]["filed"]:
-            latest[key] = f
         if key not in first or f["filed"] < first[key]["filed"]:
             first[key] = f
-    picked = sorted(latest.values(), key=lambda f: f["end"], reverse=True)[:count]
-    return [{**f, "fiscal": fiscal_label(first[(f.get("start"), f["end"])], period)} for f in picked]
+        if not _in_statements(f):
+            continue
+        if key not in latest or f["filed"] > latest[key]["filed"]:
+            latest[key] = f
+    # A period whose only facts are from distant filings still gets a value.
+    for key, f in first.items():
+        latest.setdefault(key, f)
+    periods = []
+    for key, f in latest.items():
+        fy, label = fiscal_label((labels or first).get(key, first[key]), period)
+        if through_fy is None or (fy or int(f["end"][:4])) <= through_fy:
+            original = first[key] if first[key]["val"] != f["val"] else None
+            periods.append({**f, "fiscal": label, "original": original})
+    return sorted(periods, key=lambda f: f["end"], reverse=True)[:count]
 
 
-def fiscal_label(first_report: dict, period: PeriodType) -> str | None:
-    """The company's own name for a period ("Q1 FY2027"), or None if unknown.
+def fiscal_label(first_report: dict, period: PeriodType) -> tuple[int | None, str | None]:
+    """The company's own fiscal year and name for a period (2027, "Q1 FY2027"), or (None, None).
 
     A fact's fy/fp describe the filing it appeared in, not the period: a
     10-K's prior-year comparison carries the new year's fy. The first filing
     to report a period is that period's own report, so its fy/fp name it.
     Fiscal years don't follow the calendar (NVIDIA's FY2027 began in
     January 2026), which is why this is read from the filing, never guessed.
+    Periods from before a company filed XBRL (about 2009-2011) first appear
+    as comparisons in a later filing; a label more than a year from the
+    period's end date is one of those, so it is dropped rather than shown.
     """
     fy, fp, form = first_report.get("fy"), first_report.get("fp") or "", first_report.get("form")
-    if not fy or "start" not in first_report:
-        return None
+    if not isinstance(fy, int) or abs(fy - int(first_report["end"][:4])) > 1:
+        return None, None
+    instant = "start" not in first_report
     if period == "annual" and fp == "FY" and form in ANNUAL_FORMS:
-        return f"FY{fy}"
+        return fy, f"FY{fy} year end" if instant else f"FY{fy}"
     if period == "quarterly" and fp.startswith("Q") and form == "10-Q":
-        return f"{fp} FY{fy}"
-    return None
+        return fy, f"{fp} FY{fy} end" if instant else f"{fp} FY{fy}"
+    return None, None
 
 
-def _facts_for(us_gaap: dict, metric: str) -> tuple[str, str, list[dict]] | None:
-    """(tag, unit, facts) for the tag with the most recent fact, or None."""
-    best = None
+def _tags_for(us_gaap: dict, metric: str) -> list[tuple[str, str, list[dict]]]:
+    """(tag, unit, facts) for each of a metric's tags the company uses, in CONCEPTS priority order.
+
+    Order matters when a company reports two of them for the same period:
+    AMD files both DepreciationDepletionAndAmortization ($167M, the cash
+    flow line) and Depreciation ($94M, one part of it). The more complete
+    concept is listed first and wins; later tags only fill periods it lacks.
+    """
+    found = []
     for tag in CONCEPTS[metric]:
         units = (us_gaap.get(tag) or {}).get("units") or {}
         for unit in UNITS:
             facts = units.get(unit)
             if facts:
-                newest = max(f["end"] for f in facts)
-                if best is None or newest > best[0]:
-                    best = (newest, tag, unit, facts)
-    return best[1:] if best else None
+                found.append((tag, unit, facts))
+                break
+    return found
 
 
 def company_facts(cik: int) -> dict:
@@ -185,11 +256,15 @@ def company_facts(cik: int) -> dict:
     return _cached(("facts", cik), FACTS_TTL_SECONDS, fetch)
 
 
-def get_financials(symbol: str, metrics, period: PeriodType = "annual", count: int = 4) -> dict | None:
+def get_financials(symbol: str, metrics, period: PeriodType = "annual", count: int = 4,
+                   through_fy: int | None = None) -> dict | None:
     """Reported values per metric, newest period first; None if the company doesn't file XBRL.
 
+    through_fy limits the periods to that fiscal year and earlier, for history.
+
     {"symbol", "name", "cik", "metrics": {metric: {"tag", "unit", "values": [
-        {"start", "end", "value", "fiscal", "form", "filed", "url"}, ...]}}}
+        {"start", "end", "value", "fiscal", "tag", "unit", "form", "filed", "url",
+         "original": None or {"value", "form", "filed", "url"}}, ...]}}}
     A metric the company doesn't report is left out.
     """
     company = lookup_cik(symbol)
@@ -198,19 +273,31 @@ def get_financials(symbol: str, metrics, period: PeriodType = "annual", count: i
     us_gaap = (company_facts(company["cik"]).get("facts") or {}).get("us-gaap")
     if not us_gaap:
         return None
+    labels = first_reports(us_gaap)
     found = {}
     for metric in metrics:
-        hit = _facts_for(us_gaap, metric)
-        if hit is None:
+        tags = _tags_for(us_gaap, metric)
+        if not tags:
             continue
-        tag, unit, facts = hit
-        values = [
-            {"start": f.get("start"), "end": f["end"], "value": f["val"], "fiscal": f["fiscal"],
-             "form": f["form"], "filed": f["filed"], "url": filing_index_url(company["cik"], f["accn"])}
-            for f in select_periods(facts, period, count)
-        ]
-        if values:
-            found[metric] = {"tag": tag, "unit": unit, "values": values}
+        # Companies switch tags over time (Apple's revenue was "Revenues"
+        # until 2018). Each period takes the first tag, in priority order,
+        # that has it; each value names its tag.
+        by_period: dict[tuple, dict] = {}
+        for tag, unit, facts in tags:
+            for f in select_periods(facts, period, count, through_fy, labels):
+                by_period.setdefault((f.get("start"), f["end"]), {**f, "tag": tag, "unit": unit})
+        picked = sorted(by_period.values(), key=lambda f: f["end"], reverse=True)[:count]
+        if picked:
+            found[metric] = {"tag": picked[0]["tag"], "unit": picked[0]["unit"], "values": [
+                {"start": f.get("start"), "end": f["end"], "value": f["val"], "fiscal": f["fiscal"],
+                 "tag": f["tag"], "unit": f["unit"], "form": f["form"], "filed": f["filed"],
+                 "url": filing_index_url(company["cik"], f["accn"]),
+                 "original": f["original"] and {
+                     "value": f["original"]["val"], "form": f["original"]["form"],
+                     "filed": f["original"]["filed"],
+                     "url": filing_index_url(company["cik"], f["original"]["accn"])}}
+                for f in picked
+            ]}
     return {"symbol": symbol.upper(), "name": company["name"], "cik": company["cik"], "metrics": found}
 
 
