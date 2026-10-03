@@ -18,7 +18,9 @@ step() { printf '\n== %s\n' "$*"; }
 # get_financials calls the SEC's XBRL API from the runtime, and the SEC
 # refuses requests without a User-Agent naming a contact. Checked before
 # anything is built. It goes into a JSON string below, so no quotes.
-SEC_USER_AGENT="${SEC_USER_AGENT:-$(grep -s '^SEC_USER_AGENT=' .env | cut -d= -f2- || true)}"
+# .env may quote the value (SEC_USER_AGENT="Name a@b.com"); dotenv strips
+# the quotes, so this does too.
+SEC_USER_AGENT="${SEC_USER_AGENT:-$(grep -s '^SEC_USER_AGENT=' .env | cut -d= -f2- | sed -E "s/^[\"'](.*)[\"']\$/\1/" || true)}"
 if [[ "$SEC_USER_AGENT" != *@* || "$SEC_USER_AGENT" == *[\"\\]* ]]; then
   echo 'Set SEC_USER_AGENT="Your Name you@example.com" in .env (no quotes inside).' >&2
   exit 1
