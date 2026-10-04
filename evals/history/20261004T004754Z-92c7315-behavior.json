@@ -1,0 +1,59 @@
+{
+ "run_at": "2026-10-04T00:47:54+00:00",
+ "commit": "92c7315",
+ "suite": "behavior",
+ "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+ "summary": {
+  "passed": 2,
+  "total": 2,
+  "pass_rate": 1.0,
+  "by_category": {
+   "market": {
+    "passed": 2,
+    "total": 2
+   }
+  },
+  "latency_ms_p50": 2816,
+  "latency_ms_p95": 2990,
+  "input_tokens": 14029,
+  "output_tokens": 383,
+  "est_cost_usd": 0.0159,
+  "rewrites": 0,
+  "figures_unverified": 0
+ },
+ "cases": [
+  {
+   "id": "What's the price of AAPL?",
+   "category": "market",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 2643,
+   "input_tokens": 6923,
+   "output_tokens": 130,
+   "tools": [
+    "get_stock_price"
+   ],
+   "figures_checked": 3,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Apple (AAPL) is trading at **$333.69** as of October 2, 2026, up +1.02% from the previous close of $330.32.\n\nSources: [AAPL stock price](https://finance.yahoo.com/quote/AAPL/)"
+  },
+  {
+   "id": "How has NVDA done over the last month?",
+   "category": "market",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 2990,
+   "input_tokens": 7106,
+   "output_tokens": 253,
+   "tools": [
+    "get_price_history",
+    "get_stock_price"
+   ],
+   "figures_checked": 6,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Over the last month (September 3 to October 2, 2026), NVDA gained +2.52%, rising from $228.19 to $233.95. The stock traded between a high of $237.88 and a low of $208.93 during that period. As of today (October 2), it's up +1.34% in intraday trading.\n\nSources: [NVDA price history](https://finance.yahoo.com/quote/NVDA/history/), [NVDA price](https://finance.yahoo.com/quote/NVDA/)"
+  }
+ ]
+}

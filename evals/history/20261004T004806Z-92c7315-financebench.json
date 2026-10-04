@@ -1,0 +1,60 @@
+{
+ "run_at": "2026-10-04T00:48:06+00:00",
+ "commit": "92c7315",
+ "suite": "financebench",
+ "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+ "summary": {
+  "passed": 2,
+  "total": 2,
+  "pass_rate": 1.0,
+  "by_category": {
+   "financebench": {
+    "passed": 2,
+    "total": 2
+   }
+  },
+  "latency_ms_p50": 4070,
+  "latency_ms_p95": 4334,
+  "input_tokens": 22809,
+  "output_tokens": 607,
+  "est_cost_usd": 0.0258,
+  "rewrites": 0,
+  "figures_unverified": 0
+ },
+ "cases": [
+  {
+   "id": "financebench_id_03029",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 4334,
+   "input_tokens": 11399,
+   "output_tokens": 299,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 1,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on 3M Company's (MMM) SEC-reported cash flow statement, the FY2018 capital expenditure amount was $1,577,000,000.\n\nSources: [3M FY2018 Financials](https://www.sec.gov/Archives/edgar/data/66740/000155837021000737/)\n\nAnswer: 1,577"
+  },
+  {
+   "id": "financebench_id_04672",
+   "category": "financebench",
+   "passed": true,
+   "reason": "",
+   "latency_ms": 3806,
+   "input_tokens": 11410,
+   "output_tokens": 308,
+   "tools": [
+    "search_ticker",
+    "get_financials"
+   ],
+   "figures_checked": 2,
+   "figures_unverified": 0,
+   "rewrites": 0,
+   "answer": "Based on 3M Company's (MMM) SEC-reported balance sheet figures from the 10-K filing, the year end FY2018 net property, plant, and equipment (PPNE) is:\n\n**$8.74 billion**\n\nSources: [3M FY2018 balance sheet](https://www.sec.gov/Archives/edgar/data/66740/000155837020000581/)\n\nAnswer: $8.74 billion"
+  }
+ ]
+}
