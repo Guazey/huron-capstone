@@ -41,8 +41,14 @@ the result vanished with the terminal. That left three gaps:
      each run costs about $0.90.
    - It gets a 1-hour session on `capstone-sidebar-eval-ci` by trading
      GitHub's OIDC token.
-   - The role trusts only `repo:Guazey/huron-capstone:ref:refs/heads/main`,
-     so pull requests and other branches can't get credentials.
+   - The role trusts only this repo's `main` branch, so pull requests and
+     other branches can't get credentials.
+   - The repo uses GitHub's immutable subject claims
+     (`repo:Guazey@180081659/huron-capstone@1380809494:ref:refs/heads/main`),
+     which carry the owner and repo IDs. A repo deleted and re-created under
+     the same name can't assume the role. `ci_role.sh` reads the prefix from
+     GitHub instead of assuming the older name-only format; the first CI run
+     failed on exactly that.
    - It may call one model and search one knowledge base, and the project
      permissions boundary caps it.
    - The run fails below an 80% pass rate. Scores are posted to the run page

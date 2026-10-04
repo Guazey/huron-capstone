@@ -35,15 +35,20 @@ aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$OIDC_ARN" 
 echo "  $OIDC_HOST"
 
 step "2/3 role ${CI_ROLE_NAME}"
-# Only this repo's main branch: the sub claim is repo:<owner>/<repo>:ref:<ref>.
+# Only this repo's main branch: the token's sub claim is <prefix>:ref:<ref>.
 # Pull requests (including from forks) and other branches get no credentials.
+# GitHub reports the prefix: with immutable subjects it carries the owner and
+# repo IDs (repo:Guazey@180081659/huron-capstone@1380809494), so a repo
+# deleted and re-created under the same name can't use this role.
+SUB_PREFIX=$(gh api "repos/${REPO}/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null || true)
+SUB_PREFIX="${SUB_PREFIX:-repo:${REPO}}"
 TRUST=$(cat <<EOF
 {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
  "Principal":{"Federated":"${OIDC_ARN}"},
  "Action":"sts:AssumeRoleWithWebIdentity",
  "Condition":{"StringEquals":{
   "${OIDC_HOST}:aud":"sts.amazonaws.com",
-  "${OIDC_HOST}:sub":"repo:${REPO}:ref:refs/heads/main"}}}]}
+  "${OIDC_HOST}:sub":"${SUB_PREFIX}:ref:refs/heads/main"}}}]}
 EOF
 )
 FOUNDATION_MODEL="${MODEL_ID#us.}"
@@ -68,7 +73,7 @@ aws iam put-role-permissions-boundary --role-name "$CI_ROLE_NAME" --permissions-
 aws iam put-role-policy --role-name "$CI_ROLE_NAME" --policy-name "${CI_ROLE_NAME}-invoke" \
   --policy-document "$POLICY"
 CI_ROLE_ARN=$(aws iam get-role --role-name "$CI_ROLE_NAME" --query Role.Arn --output text)
-echo "  can invoke ${MODEL_ID} and search knowledge base ${KB_ID}; trusted by ${REPO}@main only"
+echo "  can invoke ${MODEL_ID} and search knowledge base ${KB_ID}; trusted by ${SUB_PREFIX}:ref:refs/heads/main only"
 
 step "3/3 GitHub repository secrets and variables"
 # Secrets are masked in workflow logs: the role ARN carries the account ID,

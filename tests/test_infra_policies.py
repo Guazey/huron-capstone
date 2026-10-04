@@ -78,7 +78,8 @@ def test_ci_deployer_policy_touches_only_the_ci_role_and_githubs_provider():
 
 def test_ci_role_trusts_only_this_repos_main_branch_and_can_only_invoke_and_search():
     script = (INFRA / "ci_role.sh").read_text()
-    assert '"${OIDC_HOST}:sub":"repo:${REPO}:ref:refs/heads/main"' in script
+    assert '"${OIDC_HOST}:sub":"${SUB_PREFIX}:ref:refs/heads/main"' in script
+    assert 'SUB_PREFIX="${SUB_PREFIX:-repo:${REPO}}"' in script  # never empty, never a wildcard
     assert '"${OIDC_HOST}:aud":"sts.amazonaws.com"' in script
     assert "StringLike" not in script  # no wildcard subjects (any branch, any PR)
     assert '--permissions-boundary "$BOUNDARY_ARN"' in script
