@@ -66,6 +66,17 @@ CONCEPTS: dict[str, tuple[str, ...]] = {
     "stockholders_equity": ("StockholdersEquity",),
     "long_term_debt": ("LongTermDebtNoncurrent", "LongTermDebt"),
 }
+# Metrics whose alternative tags are each a part of the total, so for a
+# period the largest reported value is the total. CVS files Revenues
+# ($194.58B, the total) and RevenueFromContractWithCustomer ($193.92B, which
+# leaves some revenue out); General Mills files Revenues for a $2.04B
+# sub-figure next to its $16.87B total; AMD files Depreciation ($94M) inside
+# DepreciationDepletionAndAmortization ($167M). Every other metric keeps
+# strict priority order, because a larger alternative there means something
+# else: ProfitLoss includes noncontrolling interests, and the PP&E
+# alternative adds finance-lease assets.
+LARGEST_IS_TOTAL = {"revenue", "depreciation_amortization", "dividends_paid", "accounts_receivable", "inventory"}
+
 LABELS = {
     "revenue": "Revenue", "cost_of_revenue": "Cost of revenue (COGS)", "gross_profit": "Gross profit",
     "operating_income": "Operating income", "net_income": "Net income", "eps_diluted": "EPS (diluted)",
@@ -281,11 +292,15 @@ def get_financials(symbol: str, metrics, period: PeriodType = "annual", count: i
             continue
         # Companies switch tags over time (Apple's revenue was "Revenues"
         # until 2018). Each period takes the first tag, in priority order,
-        # that has it; each value names its tag.
+        # that has it (or the largest, for LARGEST_IS_TOTAL); each value
+        # names its tag.
         by_period: dict[tuple, dict] = {}
         for tag, unit, facts in tags:
             for f in select_periods(facts, period, count, through_fy, labels):
-                by_period.setdefault((f.get("start"), f["end"]), {**f, "tag": tag, "unit": unit})
+                key = (f.get("start"), f["end"])
+                held = by_period.get(key)
+                if held is None or (metric in LARGEST_IS_TOTAL and abs(f["val"]) > abs(held["val"])):
+                    by_period[key] = {**f, "tag": tag, "unit": unit}
         picked = sorted(by_period.values(), key=lambda f: f["end"], reverse=True)[:count]
         if picked:
             found[metric] = {"tag": picked[0]["tag"], "unit": picked[0]["unit"], "values": [

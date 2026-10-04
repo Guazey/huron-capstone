@@ -168,3 +168,28 @@ def test_a_value_tagged_years_later_does_not_override_the_statements():
              fact("2021-05-31", "2022-05-29", 2735000000, filed="2026-08-03", fy=2026, fp="FY")]
     [picked] = financials.select_periods(facts, "annual", 1)
     assert picked["val"] == 2707300000 and picked["original"] is None
+
+
+@pytest.mark.parametrize("revenues, contract, want", [
+    (194579000000, 193919000000, 194579000000),   # CVS: Revenues is the total
+    (2040000000, 16865000000, 16865000000),       # General Mills: Revenues is a sub-figure
+])
+def test_total_revenue_is_the_largest_revenue_tag(monkeypatch, revenues, contract, want):
+    monkeypatch.setattr(financials, "lookup_cik", lambda s: {"cik": 1, "name": "Co"})
+    monkeypatch.setattr(financials, "company_facts", lambda cik: {"facts": {"us-gaap": {
+        "RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": [
+            fact("2018-01-01", "2018-12-31", contract, filed="2019-02-28", fy=2018, fp="FY")]}},
+        "Revenues": {"units": {"USD": [fact("2018-01-01", "2018-12-31", revenues, filed="2019-02-28", fy=2018, fp="FY")]}},
+    }}})
+    [v] = financials.get_financials("CO", ["revenue"], count=1)["metrics"]["revenue"]["values"]
+    assert v["value"] == want
+
+
+def test_net_income_keeps_priority_order_even_when_profitloss_is_larger(monkeypatch):
+    monkeypatch.setattr(financials, "lookup_cik", lambda s: {"cik": 1, "name": "Co"})
+    monkeypatch.setattr(financials, "company_facts", lambda cik: {"facts": {"us-gaap": {
+        "NetIncomeLoss": {"units": {"USD": [fact("2021-05-31", "2022-05-29", 2707300000, filed="2022-06-30", fy=2022, fp="FY")]}},
+        "ProfitLoss": {"units": {"USD": [fact("2021-05-31", "2022-05-29", 2735000000, filed="2022-06-30", fy=2022, fp="FY")]}},
+    }}})
+    [v] = financials.get_financials("CO", ["net_income"], count=1)["metrics"]["net_income"]["values"]
+    assert v["value"] == 2707300000
