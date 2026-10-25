@@ -96,8 +96,10 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 - **Page context is a ticker, never page text.** The desktop app reads the
   browser tab's URL and title on the user's machine and keeps only a ticker
   and a site name. `app.py` accepts only those two, each checked against a
-  regex, so a page title can't carry instructions to the model. Logs record
-  the site, not the ticker.
+  regex, so a page title can't carry instructions to the model. `app.py`'s
+  own log line records the site, not the ticker, but Runtime logs the full
+  request payload (see Logs below), so the ticker is in CloudWatch like the
+  prompt is.
 - **Tool arguments come from the model and are untrusted.** Tickers are
   checked against a regex before any network call, and `period` is an enum.
 - **Logs:** Runtime logs request and response payloads to CloudWatch, and
