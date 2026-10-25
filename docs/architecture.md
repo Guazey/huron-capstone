@@ -45,8 +45,9 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 | Side panel extension | `extension/`, `infra/login_setup.sh` | done (slice 4): built; Cognito hosted login + PKCE |
 | SEC filings RAG: `sec_edgar.py` → S3 → Bedrock Managed Knowledge Base; `search_sec_filings` tool | `sec_edgar.py`, `knowledge.py`, `infra/deploy.sh` | done ([ADR-0003](decisions/0003-sec-filings-managed-knowledge-base.md)) |
 | Desktop app: the same UI in an always-on-top menu bar window; system-browser sign-in with a loopback redirect; signed auto-update from GitHub Releases | `desktop/`, `extension/src/platform.ts`, `infra/login_setup.sh` | done: built, signed in and answered end to end; auto-updated 0.1.0 → 0.1.1 → 0.1.2 from GitHub Releases; sign-in verified on the fallback port with 47813 taken ([ADR-0004](decisions/0004-tauri-desktop-app.md)) |
-| Multi-turn memory (AgentCore Memory, keyed by session + Cognito user) | `app.py`, `graph.py`, `infra/deploy.sh` | done; page ticker detection still to do |
+| Multi-turn memory (AgentCore Memory, keyed by session + Cognito user) | `app.py`, `graph.py`, `infra/deploy.sh` | done |
 | Traceable numbers: `get_financials` (SEC XBRL, any US filer), `calculate` (code, not mental math), and a `verify` node that checks every $/%/$B figure against the tool results before the answer is final, with one rewrite; the panel shows the verdict | `financials.py`, `calculator.py`, `verify.py`, `nodes.py`, `graph.py`, `app.py`, `extension/src/App.tsx` | done ([ADR-0005](decisions/0005-traceable-numbers.md)); eval 16/16 live |
+| Page context: the desktop app reads the browser tab beside it (Chrome, Safari, Arc, Brave, Edge) when the sidebar is focused; the UI turns its URL or title into a ticker for 14 finance sites and shows it as a dismissible chip; the request carries only `{ticker, source}` | `desktop/src-tauri/src/page.rs`, `extension/src/pageTicker.ts`, `app.py`, `prompts.py` | done ([ADR-0008](decisions/0008-page-context.md)); not yet verified by hand in the built app |
 | Scored evals: behavior suite + FinanceBench numeric questions, saved per run to `evals/history/`, weekly/on-demand GitHub Actions run through an OIDC role that trusts only `main` | `eval.py`, `evals/`, `.github/workflows/eval.yml`, `infra/ci_role.sh`, `infra/deployer-ci-policy.template.json` | done ([ADR-0006](decisions/0006-scored-evals-in-ci.md)) |
 
 ## Request flow
@@ -92,6 +93,11 @@ graph as the CLI, hosted on Amazon Bedrock AgentCore Runtime.
 - **Memory is per user.** It's keyed by session ID and the Cognito user ID
   from the verified token; a deployed request without a readable user is
   refused rather than pooled.
+- **Page context is a ticker, never page text.** The desktop app reads the
+  browser tab's URL and title on the user's machine and keeps only a ticker
+  and a site name. `app.py` accepts only those two, each checked against a
+  regex, so a page title can't carry instructions to the model. Logs record
+  the site, not the ticker.
 - **Tool arguments come from the model and are untrusted.** Tickers are
   checked against a regex before any network call, and `period` is an enum.
 - **Logs:** Runtime logs request and response payloads to CloudWatch, and

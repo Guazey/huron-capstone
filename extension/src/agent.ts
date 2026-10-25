@@ -1,4 +1,5 @@
 import { invocationUrl } from "./config";
+import type { PageTicker } from "./pageTicker";
 import { type AgentEvent, parseSSE } from "./sse";
 
 export class AuthError extends Error {}
@@ -8,13 +9,17 @@ export function newSessionId(): string {
   return `sidebar-${crypto.randomUUID()}`;
 }
 
-/** Ask the agent one question and call `onEvent` for each streamed event. */
+/**
+ * Ask the agent one question and call `onEvent` for each streamed event.
+ * `page` is the ticker on the page the user has open, so "this stock" resolves.
+ */
 export async function askAgent(
   prompt: string,
   sessionId: string,
   accessToken: string,
   onEvent: (event: AgentEvent) => void,
   signal?: AbortSignal,
+  page?: PageTicker,
 ): Promise<void> {
   const response = await fetch(invocationUrl(), {
     method: "POST",
@@ -23,7 +28,7 @@ export async function askAgent(
       "Content-Type": "application/json",
       "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": sessionId,
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(page ? { prompt, page } : { prompt }),
     signal,
   });
   if (response.status === 401 || response.status === 403) {

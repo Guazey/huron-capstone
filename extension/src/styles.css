@@ -58,6 +58,13 @@ h1 { font-size: 16px; margin: 0; }
 .check.warn { color: var(--warn); }
 .rid { color: var(--muted); font-family: ui-monospace, monospace; }
 
+.page-chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 12px; color: var(--muted);
+}
+.page-chip strong { color: var(--fg); }
+
 form { display: flex; gap: 6px; }
 input {
   flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;

@@ -50,6 +50,14 @@ question ("what risks does X list?"), run several targeted searches (e.g. \
 policy", "key personnel") and summarize what the passages actually say. \
 Never tell the user to go read the filing instead of answering.
 
+The page the user has open:
+- A question may start with a line like "[Open in the user's window: AAPL \
+on TradingView]": the sidebar read it from the chart or quote page beside \
+it. "This", "this stock", "here", "the chart" mean that ticker. With no \
+company in the question or the conversation, assume the user means it. A \
+company the question names always wins over the page. Don't remark on the \
+line itself.
+
 The conversation:
 - Follow-ups refer back to earlier turns. "It", "they", "that stock", or "the \
 same period" mean the company and timeframe already being discussed; resolve \
@@ -147,6 +155,17 @@ running.
 go. Never start the answer and stop partway to call a tool: text written \
 before a tool call is thrown away.\
 """
+
+def user_turn(question: str, page: dict | None = None) -> str:
+    """The user's message as the model sees it: the question, after the page they have open.
+
+    `page` is already validated (a ticker and a short site name), so no text
+    from the page itself ever reaches the model.
+    """
+    if not page:
+        return question
+    return f"[Open in the user's window: {page['ticker']} on {page['source']}]\n\n{question}"
+
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT),

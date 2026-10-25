@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
+import type { OpenPage } from "../../extension/src/pageTicker";
 import type { Platform } from "../../extension/src/platform";
 
 // Sign-in finishes in the system browser, which redirects to a one-shot
@@ -30,4 +32,9 @@ export const tauriPlatform: Platform = {
   openExternal: (url) =>
     void openUrl(url).catch((e: unknown) => console.error("couldn't open link", e)),
   hide: () => void getCurrentWindow().hide(),
+  // page.rs sends the browser tab beside the sidebar each time it's focused.
+  onPageChange(listener) {
+    const stop = listen<OpenPage | null>("page", (e) => listener(e.payload ?? undefined));
+    return () => void stop.then((unlisten) => unlisten());
+  },
 };

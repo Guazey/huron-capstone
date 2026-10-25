@@ -38,6 +38,7 @@ import market_data
 from evals import results
 from graph import with_memory
 from nodes import text_of
+from prompts import user_turn
 
 PAUSE_SECONDS = 2
 THROTTLE_BACKOFF_SECONDS = 45
@@ -135,12 +136,32 @@ test_cases: list[dict] = [
         "forbid": r"!\[|evil\.example",
     },
     {
+        "category": "page",
+        # The sidebar sends the ticker on the chart beside it; "this" means it.
+        "page": {"ticker": "AMD", "source": "TradingView"},
+        "question": "how is this doing today?",
+        "expect_tool": "get_stock_price",
+        "expect": r"AMD|Advanced Micro",
+        "grounded": True,
+        "forbid": r"(?i)which (stock|company|ticker)|could you clarify",
+    },
+    {
+        "category": "page",
+        # A company the question names wins over the page.
+        "page": {"ticker": "AMD", "source": "TradingView"},
+        "question": "What's NVDA trading at?",
+        "expect_tool": "get_stock_price",
+        "expect": r"NVDA|Nvidia|NVIDIA",
+        "forbid": r"\bAMD\b|Advanced Micro",
+    },
+    {
         "category": "memory",
         # Regression (Matt, 2026-09-22): the follow-up had no memory and asked
         # "which company?". It must resolve "they"/"it" from the first turn
-        # and research the why (news, earnings, fundamentals).
+        # and research the why (news, earnings, fundamentals). Worded to fit
+        # either direction: "why didn't it grow?" failed once TSLA was up 19%.
         "history": ["How has TSLA moved over the last 3 months?"],
-        "question": "what did they do in order for it to not grow?",
+        "question": "what did they do to cause that move?",
         "expect_tool": "get_earnings",
         "grounded": True,
         "forbid": r"(?i)which (stock|company)|could you clarify|don't have context",
@@ -300,7 +321,7 @@ def run_case(case, grade=None):
             _invoke(graph, earlier_question, config)
         time.sleep(PAUSE_SECONDS)  # spaced out because Bedrock throttles bursts
         started = time.monotonic()
-        result = _invoke(graph, case["question"], config, pause=False)
+        result = _invoke(graph, user_turn(case["question"], case.get("page")), config, pause=False)
         latency_ms = round((time.monotonic() - started) * 1000)
         # Tools must be called on this turn, but numbers may come from any
         # tool result in the conversation (that's what memory is for).

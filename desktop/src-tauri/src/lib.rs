@@ -3,13 +3,14 @@
 // (Windows: system tray) and toggles with a global hotkey.
 
 mod login;
+mod page;
 mod update;
 
 use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 
@@ -76,6 +77,8 @@ fn toggle(app: &AppHandle) {
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
+        // Still the app the user was looking at: the sidebar isn't focused yet.
+        page::remember_front(app);
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -150,6 +153,14 @@ pub fn run() {
 
             // The window starts hidden so it doesn't flash before docking.
             if let Some(window) = main_window(app.handle()) {
+                // Each time the sidebar is focused, tell the UI what page
+                // is open beside it, so "this stock" means the one on screen.
+                let handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::Focused(true) = event {
+                        page::refresh(&handle);
+                    }
+                });
                 dock_right(&window)?;
                 window.show()?;
             }

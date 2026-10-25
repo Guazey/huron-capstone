@@ -69,6 +69,12 @@ Agent: [SEC financials, the math] For FY2025 (ended September 27, 2025):
        ✓ 6 figures matched to sources
 ```
 
+**It knows what you're looking at.** With a chart or quote page open in
+Chrome, Safari, Arc, Brave, or Edge (TradingView, Yahoo, Robinhood, and 11
+more), the sidebar shows "Viewing AAPL on TradingView" and "is this a good
+entry?" just works. Only the ticker and the site's name are sent, never the
+page. See [ADR-0008](docs/decisions/0008-page-context.md).
+
 ## Where each piece lives
 
 Each Python file does one job, and most can be run on their own

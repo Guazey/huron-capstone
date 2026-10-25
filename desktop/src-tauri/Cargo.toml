@@ -18,3 +18,9 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-updater = "2"
 # Used by generate_context!() once tauri.conf.json has a "plugins" block.
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+
+# page.rs: which app is in front, to read its browser tab.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }

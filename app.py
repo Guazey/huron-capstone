@@ -7,7 +7,9 @@ Run locally (same contract AgentCore uses in the cloud):
       -H 'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id: local-session-0000000000000000001' \\
       -d '{"prompt": "How is NVDA doing today?"}'
 
-Request body:  {"prompt": "<question>"}
+Request body:  {"prompt": "<question>", "page": {"ticker": "AAPL", "source": "TradingView"}}
+  `page` is optional: the ticker on the chart or quote page the user has open
+  beside the sidebar, so "is this a good entry?" knows what "this" is.
 Memory: messages sent with the same session ID (and the same signed-in user)
 form one conversation, so follow-ups like "why did it drop?" work.
 Response: Server-Sent Events, one JSON object per `data:` line:
@@ -38,6 +40,7 @@ from bedrock_agentcore.runtime.context import BedrockAgentCoreContext
 from langgraph.checkpoint.memory import InMemorySaver
 
 from graph import with_memory
+from prompts import user_turn
 
 MAX_PROMPT_CHARS = 2000
 
@@ -92,6 +95,25 @@ def validate(payload) -> str:
     if len(prompt) > MAX_PROMPT_CHARS:
         raise BadRequest(f"Question is too long (max {MAX_PROMPT_CHARS} characters).")
     return prompt.strip()
+
+
+# Only a ticker and a site name are accepted, never page text: a page title
+# is written by whoever made the page and could carry instructions.
+TICKER = re.compile(r"[A-Z][A-Z0-9]{0,5}(?:[.-][A-Z0-9]{1,3})?")
+SOURCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .]{0,29}")
+
+
+def page_context(payload) -> dict | None:
+    """The validated `page` from the request, or None if it has none; raise BadRequest if it's malformed."""
+    page = payload.get("page") if isinstance(payload, dict) else None
+    if page is None:
+        return None
+    ticker = page.get("ticker") if isinstance(page, dict) else None
+    source = page.get("source") if isinstance(page, dict) else None
+    if not (isinstance(ticker, str) and TICKER.fullmatch(ticker)
+            and isinstance(source, str) and SOURCE.fullmatch(source)):
+        raise BadRequest('"page" must look like {"ticker": "AAPL", "source": "TradingView"}.')
+    return {"ticker": ticker, "source": source}
 
 
 def events_from_chunk(chunk) -> list[dict]:
@@ -150,9 +172,11 @@ async def invoke(payload, context):
     rewrites = 0
     outcome = "ok"
     prompt = ""
+    page = None
 
     try:
         prompt = validate(payload)
+        page = page_context(payload)
         # Without a session ID there's no conversation to continue: use a
         # throwaway thread so the question is still answered.
         config = {"configurable": {
@@ -161,7 +185,7 @@ async def invoke(payload, context):
         }}
         sent_urls: set[str] = set()
         async for mode, data in graph.astream(
-            {"messages": [("user", prompt)]}, config, stream_mode=["messages", "updates"]
+            {"messages": [("user", user_turn(prompt, page))]}, config, stream_mode=["messages", "updates"]
         ):
             if mode == "updates":
                 # Tool results just landed: tell the panel which URLs they
@@ -212,6 +236,8 @@ async def invoke(payload, context):
             "outcome": outcome,
             "model": os.environ.get("BEDROCK_MODEL_ID"),
             "prompt_chars": len(prompt),
+            # Which site, never which ticker: like the prompt, it says what they're researching.
+            "page_source": page["source"] if page else None,
             "tools_called": tools_called,
             # Figure counts only, never the figures: they'd reveal the question.
             "figures_checked": number_check.get("figures"),

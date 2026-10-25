@@ -1,6 +1,8 @@
 // What the shared UI needs from its host. The Chrome extension and the desktop
 // app each provide one; everything else in src/ is the same code for both.
 
+import type { OpenPage } from "./pageTicker";
+
 export type Platform = {
   /** Memory-only storage: cleared when the host (Chrome, or the app) quits. */
   storage: {
@@ -25,6 +27,12 @@ export type Platform = {
   cancelAuthFlow?(): void;
   /** Open a link outside the app. Unset means a plain target="_blank" works. */
   openExternal?(url: string): void;
+  /**
+   * Call `listener` with the page the user has open beside the panel each
+   * time it may have changed (undefined when there isn't one), and return a
+   * function that stops listening. Unset means the host can't see it.
+   */
+  onPageChange?(listener: (page: OpenPage | undefined) => void): () => void;
   /** Hide the window. Unset means the host has its own close control. */
   hide?(): void;
 };

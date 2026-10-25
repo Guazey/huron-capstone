@@ -1,13 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Only what the sidebar UI calls: hide its window and open HTTPS links in the browser.",
-  "windows": ["main"],
+  "description": "Only what the sidebar UI calls: hide its window, open HTTPS links in the browser, and hear which page is open beside it.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:window:allow-hide",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*" }]
+      "allow": [
+        {
+          "url": "https://*"
+        }
+      ]
     }
   ]
 }

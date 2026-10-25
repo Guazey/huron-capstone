@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 
 import { AuthError, askAgent, newSessionId } from "./agent";
 import { accessToken, currentSession, endLoginSession, signIn, signOut } from "./auth";
+import { type PageTicker, tickerFromPage } from "./pageTicker";
 import { platform } from "./platform";
 
 type Message = {
@@ -52,6 +53,9 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [sessionId, setSessionId] = useState(newSessionId);
+  const [page, setPage] = useState<PageTicker>();
+  /** A page the user dismissed: not sent until they open a different one. */
+  const [dismissed, setDismissed] = useState<string>();
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +83,10 @@ export default function App() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
+
+  useEffect(() => platform().onPageChange?.((open) => setPage(open && tickerFromPage(open))), []);
+  const pageKey = page && `${page.ticker}@${page.source}`;
+  const activePage = pageKey !== dismissed ? page : undefined;
 
   function updateLast(change: (m: Message) => Message) {
     setMessages((all) => [...all.slice(0, -1), change(all[all.length - 1])]);
@@ -152,6 +160,7 @@ export default function App() {
             updateLast((m) => ({ ...m, error: event.message, requestId: event.request_id }));
         },
         controller.signal,
+        activePage,
       );
     } catch (e) {
       if (e instanceof AuthError) {
@@ -226,13 +235,24 @@ export default function App() {
         <div ref={endRef} />
       </section>
 
+      {activePage && (
+        <div className="page-chip" title="Only this ticker and the site's name are sent with your question">
+          <span>
+            Viewing <strong>{activePage.ticker}</strong> on {activePage.source}
+          </span>
+          <button className="link" onClick={() => setDismissed(pageKey)} aria-label="Don't use this page">
+            ×
+          </button>
+        </div>
+      )}
+
       <form onSubmit={onSubmit}>
         <label htmlFor="question" className="sr-only">Question</label>
         <input
           id="question"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about a ticker…"
+          placeholder={activePage ? `Ask about ${activePage.ticker}…` : "Ask about a ticker…"}
           maxLength={2000}
           autoComplete="off"
         />

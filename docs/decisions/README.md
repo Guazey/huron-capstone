@@ -9,3 +9,4 @@
 | [0005](0005-traceable-numbers.md) | Traceable numbers: SEC XBRL figures, a calculator tool, and a verify node that checks every figure | accepted |
 | [0006](0006-scored-evals-in-ci.md) | Scored evals with FinanceBench, tracked in `evals/history/`, run in GitHub Actions through OIDC (no stored keys) | accepted |
 | [0007](0007-prompt-caching-and-answer-structure.md) | Bedrock prompt caching, and a fixed answer shape (bottom line, evidence, what to watch) | accepted |
+| [0008](0008-page-context.md) | Page context: the desktop app reads the browser tab beside it; only a validated ticker and site name reach the agent | accepted |

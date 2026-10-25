@@ -2134,6 +2134,9 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 name = "market-sidebar"
 version = "0.1.4"
 dependencies = [
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",
