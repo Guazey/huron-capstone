@@ -156,6 +156,7 @@ go. Never start the answer and stop partway to call a tool: text written \
 before a tool call is thrown away.\
 """
 
+
 def user_turn(question: str, page: dict | None = None) -> str:
     """The user's message as the model sees it: the question, after the page they have open.
 
