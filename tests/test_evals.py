@@ -76,7 +76,18 @@ def test_usage_counts_ai_tokens_and_tools():
         ToolMessage("1", tool_call_id="1"),
         AIMessage("done", usage_metadata={"input_tokens": 20, "output_tokens": 5, "total_tokens": 25}),
     ]
-    assert results.usage(msgs) == {"input_tokens": 30, "output_tokens": 7, "tools": ["calculate"]}
+    assert results.usage(msgs) == {"input_tokens": 30, "output_tokens": 7, "cache_read_tokens": 0,
+                                   "cache_write_tokens": 0, "tools": ["calculate"]}
+
+
+def test_usage_and_cost_price_cached_tokens():
+    msgs = [AIMessage("done", usage_metadata={
+        "input_tokens": 5000, "output_tokens": 200, "total_tokens": 5200,
+        "input_token_details": {"cache_read": 4000, "cache_creation": 0, "ephemeral_5m_input_tokens": 800}})]
+    u = results.usage(msgs)
+    assert (u["cache_read_tokens"], u["cache_write_tokens"]) == (4000, 800)
+    # 200 uncached + 4000 * 0.1 + 800 * 1.25 = 1600 input-priced tokens.
+    assert results.cost_usd(5000, 200, 4000, 800) == (1600 * 1.0 + 200 * 5.0) / 1e6
 
 
 def test_save_load_and_report(tmp_path):

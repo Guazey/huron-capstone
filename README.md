@@ -54,6 +54,13 @@ once (the panel swaps in the corrected answer). The panel then shows "✓ 6
 figures matched to sources", or names any figure it still couldn't match.
 See [ADR-0005](docs/decisions/0005-traceable-numbers.md).
 
+**Answers have a fixed shape**: a bold bottom line with the key figure,
+a few evidence bullets that compare each number with something the tools
+returned, and a "What to watch" line for analysis questions. **Prompt
+caching** means each later model call in a question reuses the earlier
+prefix, which halved the estimated FinanceBench cost. See
+[ADR-0007](docs/decisions/0007-prompt-caching-and-answer-structure.md).
+
 ```
 You:   How fast did Apple's revenue grow last fiscal year, and what was its profit margin?
 Agent: [SEC financials, the math] For FY2025 (ended September 27, 2025):

@@ -144,7 +144,7 @@ def urls_from_update(update: dict) -> list[str]:
 async def invoke(payload, context):
     request_id = BedrockAgentCoreContext.get_request_id() or str(uuid.uuid4())
     started = time.monotonic()
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0}
     tools_called = []
     number_check: dict = {}
     rewrites = 0
@@ -184,6 +184,8 @@ async def invoke(payload, context):
             if chunk.usage_metadata:
                 usage["input_tokens"] += chunk.usage_metadata["input_tokens"]
                 usage["output_tokens"] += chunk.usage_metadata["output_tokens"]
+                details = chunk.usage_metadata.get("input_token_details") or {}
+                usage["cache_read_tokens"] += details.get("cache_read", 0)
             for event in events_from_chunk(chunk):
                 if event["type"] == "tool":
                     tools_called.append(event["name"])

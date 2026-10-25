@@ -14,6 +14,8 @@ HISTORY = pathlib.Path(__file__).resolve().parent / "history"
 # Claude Haiku 4.5 list price on Bedrock, USD per million tokens. An estimate
 # for comparing runs, not a bill: cross-region profiles and discounts vary.
 PRICE_PER_MTOK = {"input": 1.00, "output": 5.00}
+# Prompt caching: a cache read costs 0.1x input, a cache write 1.25x.
+CACHE_READ_RATE, CACHE_WRITE_RATE = 0.1, 1.25
 MAX_ANSWER_CHARS = 600
 
 
@@ -23,13 +25,19 @@ def usage(messages) -> dict:
     Drafts the verify step rejected are removed from state, so their tokens
     aren't counted: the totals slightly undercount turns with a rewrite.
     """
-    tokens = {"input_tokens": 0, "output_tokens": 0}
+    tokens = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0}
     tools = []
     for m in messages:
         if m.type != "ai":
             continue
-        for key in tokens:
-            tokens[key] += (m.usage_metadata or {}).get(key, 0)
+        meta = m.usage_metadata or {}
+        tokens["input_tokens"] += meta.get("input_tokens", 0)
+        tokens["output_tokens"] += meta.get("output_tokens", 0)
+        details = meta.get("input_token_details") or {}
+        tokens["cache_read_tokens"] += details.get("cache_read", 0)
+        # langchain-aws reports writes under the cache's TTL when Bedrock gives one.
+        tokens["cache_write_tokens"] += sum(details.get(k, 0) for k in (
+            "cache_creation", "ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"))
         tools += [c["name"] for c in m.tool_calls]
     return {**tokens, "tools": tools}
 
@@ -51,8 +59,11 @@ def case_result(case: dict, passed: bool, reason: str, answer: str, latency_ms: 
     }
 
 
-def cost_usd(input_tokens: int, output_tokens: int) -> float:
-    return (input_tokens * PRICE_PER_MTOK["input"] + output_tokens * PRICE_PER_MTOK["output"]) / 1e6
+def cost_usd(input_tokens: int, output_tokens: int, cache_read: int = 0, cache_write: int = 0) -> float:
+    """input_tokens includes the cached ones; those are repriced at their own rate."""
+    uncached = input_tokens - cache_read - cache_write
+    input_cost = uncached + cache_read * CACHE_READ_RATE + cache_write * CACHE_WRITE_RATE
+    return (input_cost * PRICE_PER_MTOK["input"] + output_tokens * PRICE_PER_MTOK["output"]) / 1e6
 
 
 def summarize(cases: list[dict]) -> dict:
@@ -64,6 +75,9 @@ def summarize(cases: list[dict]) -> dict:
     latencies = sorted(c["latency_ms"] for c in cases) or [0]
     input_tokens = sum(c["input_tokens"] for c in cases)
     output_tokens = sum(c["output_tokens"] for c in cases)
+    # Runs saved before prompt caching have no cache fields.
+    cache_read = sum(c.get("cache_read_tokens", 0) for c in cases)
+    cache_write = sum(c.get("cache_write_tokens", 0) for c in cases)
     passed = sum(c["passed"] for c in cases)
     return {
         "passed": passed,
@@ -74,7 +88,9 @@ def summarize(cases: list[dict]) -> dict:
         "latency_ms_p95": latencies[min(len(latencies) - 1, round(0.95 * (len(latencies) - 1)))],
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "est_cost_usd": round(cost_usd(input_tokens, output_tokens), 4),
+        "cache_read_tokens": cache_read,
+        "cache_write_tokens": cache_write,
+        "est_cost_usd": round(cost_usd(input_tokens, output_tokens, cache_read, cache_write), 4),
         "rewrites": sum(c["rewrites"] for c in cases),
         "figures_unverified": sum(c["figures_unverified"] for c in cases),
     }

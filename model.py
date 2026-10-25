@@ -25,7 +25,13 @@ model = ChatBedrockConverse(
 
 # Attach the tool schemas to every request. The model can now *ask* for a
 # tool, but nothing in this file ever runs one.
-model_with_tools = model.bind_tools(TOOLS)
+#
+# cache_control turns on Bedrock prompt caching: cache points after the tool
+# schemas, the system prompt, and the conversation so far. One question takes
+# several model calls (ask for tools, read results, answer), and each resends
+# everything before it, so later calls read that prefix from cache: cheaper
+# (cache reads cost a tenth of input) and faster to the first token.
+model_with_tools = model.bind_tools(TOOLS, cache_control={"type": "ephemeral"})
 
 
 if __name__ == "__main__":

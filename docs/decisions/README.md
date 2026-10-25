@@ -8,3 +8,4 @@
 | [0004](0004-tauri-desktop-app.md) | Tauri for the desktop app, sharing the extension's UI | accepted |
 | [0005](0005-traceable-numbers.md) | Traceable numbers: SEC XBRL figures, a calculator tool, and a verify node that checks every figure | accepted |
 | [0006](0006-scored-evals-in-ci.md) | Scored evals with FinanceBench, tracked in `evals/history/`, run in GitHub Actions through OIDC (no stored keys) | accepted |
+| [0007](0007-prompt-caching-and-answer-structure.md) | Bedrock prompt caching, and a fixed answer shape (bottom line, evidence, what to watch) | accepted |
