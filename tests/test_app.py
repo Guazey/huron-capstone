@@ -245,6 +245,7 @@ def test_verify_rewrite_and_verdict_become_events(monkeypatch):
     {"ticker": "AAPL", "source": "TradingView"},
     {"ticker": "BRK.B", "source": "Yahoo Finance"},
     {"ticker": "RDS-A", "source": "Robinhood"},
+    {"ticker": "AAPL", "source": "E-Trade"},
 ])
 def test_page_context_accepts_ticker_and_site(page):
     assert app.page_context({"prompt": "x", "page": page}) == page

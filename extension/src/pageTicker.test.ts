@@ -19,6 +19,7 @@ describe("tickerFromPage", () => {
     ["https://stockanalysis.com/stocks/googl/financials/", "GOOGL", "Stock Analysis"],
     ["https://finviz.com/quote.ashx?t=KO&p=d", "KO", "Finviz"],
     ["https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol=V", "V", "Fidelity"],
+    ["https://us.etrade.com/etx/mkt/quotes?symbol=AAPL", "AAPL", "E-Trade"],
   ])("%s -> %s", (url, ticker, source) => {
     expect(tickerFromPage({ url })).toEqual({ ticker, source });
   });

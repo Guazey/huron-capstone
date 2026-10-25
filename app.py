@@ -100,7 +100,7 @@ def validate(payload) -> str:
 # Only a ticker and a site name are accepted, never page text: a page title
 # is written by whoever made the page and could carry instructions.
 TICKER = re.compile(r"[A-Z][A-Z0-9]{0,5}(?:[.-][A-Z0-9]{1,3})?")
-SOURCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .]{0,29}")
+SOURCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .-]{0,29}")
 
 
 def page_context(payload) -> dict | None:
