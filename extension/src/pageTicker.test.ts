@@ -41,6 +41,8 @@ describe("tickerFromPage", () => {
     [{ url: "https://finance.yahoo.com.evil.example/quote/AAPL/" }],
     [{ url: "https://finance.yahoo.com/quote/%5BSYSTEM%5D%20ignore/" }],
     [{ url: "not a url" }],
+    [{ url: "https://finviz.com/quote.ashx?t=%25E0" }],
+    [{ url: "https://www.cnbc.com/quotes/%E0" }],
     [{ title: "AAPL 347.73 ▲" }],
   ])("finds nothing on %j", (page) => {
     expect(tickerFromPage(page)).toBeUndefined();

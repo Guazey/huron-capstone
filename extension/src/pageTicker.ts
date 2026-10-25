@@ -54,8 +54,16 @@ const TICKER = /^[A-Z][A-Z0-9]{0,5}(?:[.-][A-Z0-9]{1,3})?$/;
 
 function clean(raw: string | undefined | null): string | undefined {
   if (!raw) return undefined;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    // A malformed escape ("%E0") would throw out of tickerFromPage and leave
+    // the previous page's ticker on the chip.
+    return undefined;
+  }
   // "NASDAQ:AAPL" -> "AAPL"
-  const symbol = decodeURIComponent(raw).split(":").pop()!.trim().toUpperCase();
+  const symbol = decoded.split(":").pop()!.trim().toUpperCase();
   return TICKER.test(symbol) ? symbol : undefined;
 }
 
