@@ -61,6 +61,9 @@ EOF
 )
 # The us. inference profile routes to several US regions, so the underlying
 # foundation-model ARN needs a region wildcard; the profile itself does not.
+# Filings search reranks passages (knowledge.rerank) and embeds filings outside
+# the knowledge base (live_filings) with Cohere; Rerank has no resource ARN, so
+# the models it may call are what's scoped.
 FOUNDATION_MODEL="${MODEL_ID#us.}"
 POLICY=$(cat <<EOF
 {"Version":"2012-10-17","Statement":[
@@ -73,6 +76,11 @@ POLICY=$(cat <<EOF
   "Resource":[
    "arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:inference-profile/${MODEL_ID}",
    "arn:aws:bedrock:*::foundation-model/${FOUNDATION_MODEL}"]},
+ {"Sid":"RerankFilingPassages","Effect":"Allow","Action":"bedrock:Rerank","Resource":"*"},
+ {"Sid":"CohereFilingSearchModels","Effect":"Allow","Action":"bedrock:InvokeModel",
+  "Resource":[
+   "arn:aws:bedrock:${REGION}::foundation-model/cohere.rerank-v3-5:0",
+   "arn:aws:bedrock:${REGION}::foundation-model/cohere.embed-english-v3"]},
  {"Sid":"OwnLogs","Effect":"Allow",
   "Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams"],
   "Resource":"arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:/aws/bedrock-agentcore/runtimes/${RUNTIME_NAME}-*"},

@@ -48,11 +48,31 @@ def test_deployer_cannot_invoke_or_read_chats():
         assert not any(forbidden in a for a in actions), forbidden
 
 
+COHERE_MODELS = {"cohere.rerank-v3-5:0", "cohere.embed-english-v3"}
+
+
+def assert_cohere_models_only(policy_text):
+    """Beyond Claude, a role may call only the two Cohere models filings search uses."""
+    assert set(re.findall(r"foundation-model/(cohere\.[\w.:-]+)", policy_text)) == COHERE_MODELS
+    assert "foundation-model/cohere.*" not in policy_text and "foundation-model/*" not in policy_text
+
+
 def test_boundary_keeps_roles_to_claude_and_project_resources():
     s = statements(render("boundary-policy.template.json"))
     assert all("anthropic" in r for r in s["ClaudeOnly"]["Resource"])
+    assert s["RerankFilingPassages"]["Action"] == "bedrock:Rerank"
+    assert s["CohereFilingSearchModels"]["Action"] == "bedrock:InvokeModel"
+    assert_cohere_models_only(json.dumps(s["CohereFilingSearchModels"]))
     assert s["OwnChatMemory"]["Resource"].endswith(":memory/capstone_sidebar_memory-*")
     assert not any(st.get("Action") == "*" for st in s.values())
+
+
+def test_runtime_role_may_rerank_and_embed_with_cohere_only():
+    deploy = (INFRA / "deploy.sh").read_text()
+    start = deploy.index("POLICY=$(cat <<EOF")
+    policy = deploy[start:deploy.index("EOF\n)", start)]
+    assert '"bedrock:Rerank"' in policy
+    assert_cohere_models_only(policy)
 
 
 def test_deploy_requires_authenticator_app_mfa():
@@ -86,5 +106,6 @@ def test_ci_role_trusts_only_this_repos_main_branch_and_can_only_invoke_and_sear
     start = script.index("POLICY=$(cat <<EOF")
     policy = script[start:script.index("EOF\n)", start)]
     assert set(re.findall(r'"(bedrock:\w+)"', policy)) == {
-        "bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Retrieve"}
+        "bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:Retrieve", "bedrock:Rerank"}
+    assert_cohere_models_only(policy)
     assert "knowledge-base/${KB_ID}" in policy and "knowledge-base/*" not in policy

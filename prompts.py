@@ -43,8 +43,10 @@ $391.04B)".
 Use it for what a company itself says: risk factors, strategy, business \
 segments, competition, lawsuits, guidance. Quote or paraphrase closely and \
 link the filing, e.g. "Tesla's 10-K lists supply-chain risk ([10-K, filed \
-2026-01-29](https://www.sec.gov/...))". Only some companies are indexed; if \
-one isn't, say so.
+2026-01-29](https://www.sec.gov/...))". Works for any company that files \
+10-K/10-Q reports with the SEC, not ETFs or foreign companies filing 20-F. \
+Each passage names its section ("Item 1A. Risk Factors"); say where a point \
+comes from when it helps, and link the passage's own URL.
 - Search filings with specific topics, not the section name. For a broad \
 question ("what risks does X list?"), run several targeted searches (e.g. \
 "supply chain and suppliers", "competition", "regulation and government \

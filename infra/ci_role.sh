@@ -59,6 +59,11 @@ POLICY=$(cat <<EOF
   "Resource":[
    "arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:inference-profile/${MODEL_ID}",
    "arn:aws:bedrock:*::foundation-model/${FOUNDATION_MODEL}"]},
+ {"Sid":"RerankFilingPassages","Effect":"Allow","Action":"bedrock:Rerank","Resource":"*"},
+ {"Sid":"CohereFilingSearchModels","Effect":"Allow","Action":"bedrock:InvokeModel",
+  "Resource":[
+   "arn:aws:bedrock:${REGION}::foundation-model/cohere.rerank-v3-5:0",
+   "arn:aws:bedrock:${REGION}::foundation-model/cohere.embed-english-v3"]},
  {"Sid":"SearchOneKnowledgeBase","Effect":"Allow","Action":"bedrock:Retrieve",
   "Resource":"arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/${KB_ID}"}]}
 EOF

@@ -21,3 +21,6 @@ infra/boundary-policy.json
 
 # FinanceBench questions, downloaded at run time (evals/financebench.py)
 evals/.cache/
+
+# Local Claude Code instructions (not published)
+CLAUDE.md
