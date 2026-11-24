@@ -12,3 +12,4 @@
 | [0008](0008-page-context.md) | Page context: the desktop app reads the browser tab beside it; only a validated ticker and site name reach the agent | accepted |
 | [0009](0009-ship-with-financebench-variance.md) | Ship c2b51a9 with two FinanceBench misses judged as model variance (pre-push gate exception) | accepted |
 | [0010](0010-filings-search-any-company.md) | Filings search for any company: section-aware chunks, reranking of 100 candidates with near-copies merged, and live EDGAR search outside the watchlist | accepted |
+| [0011](0011-upstream-outages-in-evals.md) | Eval cases failed by a Yahoo, SEC, or Bedrock outage are scored `UPSTREAM` and left out of the pass rate; under half scored fails as inconclusive | accepted |

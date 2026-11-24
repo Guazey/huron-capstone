@@ -170,6 +170,12 @@ on the run page, and commits them to `evals/history/`. It reaches Bedrock
 through a role that trusts only this repo's `main` branch, via GitHub's OIDC
 token, so no AWS keys live in GitHub ([ADR-0006](docs/decisions/0006-scored-evals-in-ci.md)).
 
+A case that fails because Yahoo, SEC, or Bedrock was down or throttling is
+marked `UPSTREAM` and left out of the pass rate, so an outage doesn't fail CI
+as a regression. Only a short list of outage errors counts; AccessDenied and
+our own exceptions still fail. If outages leave under half a suite scored,
+the run fails as inconclusive ([ADR-0011](docs/decisions/0011-upstream-outages-in-evals.md)).
+
 One-time setup (after `infra/deploy.sh`): an admin attaches the policy that
 `infra/render_policies.sh` writes to `infra/deployer-ci-policy.json`, then
 `infra/ci_role.sh` creates the role and sets the repo's secrets.

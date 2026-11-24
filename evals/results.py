@@ -43,13 +43,15 @@ def usage(messages) -> dict:
 
 
 def case_result(case: dict, passed: bool, reason: str, answer: str, latency_ms: int,
-                messages=(), number_check: dict | None = None) -> dict:
+                messages=(), number_check: dict | None = None, upstream: str | None = None) -> dict:
+    """One case's scores. `upstream` names an outage the failed case hit (eval.upstream_reason)."""
     check = number_check or {}
     return {
         "id": case.get("id") or case["question"][:60],
         "category": case["category"],
         "passed": passed,
         "reason": reason,
+        "upstream": None if passed else upstream,
         "latency_ms": latency_ms,
         **usage(messages),
         "figures_checked": check.get("figures", 0),
@@ -66,10 +68,20 @@ def cost_usd(input_tokens: int, output_tokens: int, cache_read: int = 0, cache_w
     return (input_cost * PRICE_PER_MTOK["input"] + output_tokens * PRICE_PER_MTOK["output"]) / 1e6
 
 
+def _is_upstream(case: dict) -> bool:
+    # Runs saved before outages were tracked have no "upstream" field.
+    return not case["passed"] and bool(case.get("upstream"))
+
+
 def summarize(cases: list[dict]) -> dict:
+    """Totals for a run. A case that failed during an outage isn't scored:
+    it counts in `upstream`, not in `passed`/`scored` or the pass rate."""
     by_category: dict[str, dict] = {}
     for c in cases:
         cat = by_category.setdefault(c["category"], {"passed": 0, "total": 0})
+        if _is_upstream(c):
+            cat["upstream"] = cat.get("upstream", 0) + 1
+            continue
         cat["total"] += 1
         cat["passed"] += c["passed"]
     latencies = sorted(c["latency_ms"] for c in cases) or [0]
@@ -79,10 +91,14 @@ def summarize(cases: list[dict]) -> dict:
     cache_read = sum(c.get("cache_read_tokens", 0) for c in cases)
     cache_write = sum(c.get("cache_write_tokens", 0) for c in cases)
     passed = sum(c["passed"] for c in cases)
+    upstream = sum(_is_upstream(c) for c in cases)
+    scored = len(cases) - upstream
     return {
         "passed": passed,
         "total": len(cases),
-        "pass_rate": round(passed / len(cases), 4) if cases else 0.0,
+        "scored": scored,
+        "upstream": upstream,
+        "pass_rate": round(passed / scored, 4) if scored else 0.0,
         "by_category": dict(sorted(by_category.items())),
         "latency_ms_p50": round(statistics.median(latencies)),
         "latency_ms_p95": latencies[min(len(latencies) - 1, round(0.95 * (len(latencies) - 1)))],
@@ -128,8 +144,14 @@ def load_history(where: pathlib.Path = HISTORY) -> list[dict]:
     return [json.loads(p.read_text()) for p in sorted(where.glob("*.json"))]
 
 
-def _pct(passed: int, total: int) -> str:
-    return f"{passed}/{total} ({100 * passed / total:.0f}%)" if total else "-"
+def _pct(passed: int, total: int, upstream: int = 0) -> str:
+    score = f"{passed}/{total} ({100 * passed / total:.0f}%)" if total else "-"
+    return f"{score} +{upstream} upstream" if upstream else score
+
+
+def _run_pct(s: dict) -> str:
+    # Older summaries have no "scored": every case was scored then.
+    return _pct(s["passed"], s.get("scored", s["total"]), s.get("upstream", 0))
 
 
 def report(runs: list[dict], last: int = 15) -> str:
@@ -144,18 +166,21 @@ def report(runs: list[dict], last: int = 15) -> str:
         s = run["summary"]
         lines.append(
             f"| {run['run_at'][:16].replace('T', ' ')} | `{run['commit']}` | {run['suite']} | "
-            f"{_pct(s['passed'], s['total'])} | {s['latency_ms_p50'] / 1000:.1f}s | ${s['est_cost_usd']:.2f} | "
+            f"{_run_pct(s)} | {s['latency_ms_p50'] / 1000:.1f}s | ${s['est_cost_usd']:.2f} | "
             f"{s['rewrites']} | {s['figures_unverified']} |"
         )
     latest: dict[str, dict] = {}
     for run in runs:
         latest[run["suite"]] = run
     for suite, run in latest.items():
-        cats = ", ".join(f"{name} {_pct(c['passed'], c['total'])}"
+        cats = ", ".join(f"{name} {_pct(c['passed'], c['total'], c.get('upstream', 0))}"
                          for name, c in run["summary"]["by_category"].items())
         lines += ["", f"**Latest {suite} run** (`{run['commit']}`): {cats}"]
         for c in run["cases"]:
-            if not c["passed"]:
+            if _is_upstream(c):
+                lines.append(f"- UPSTREAM `{c['id']}` ({c['category']}): {c['reason']} "
+                             f"[outage: {c['upstream']}, not scored]")
+            elif not c["passed"]:
                 lines.append(f"- FAIL `{c['id']}` ({c['category']}): {c['reason']}")
     return "\n".join(lines)
 

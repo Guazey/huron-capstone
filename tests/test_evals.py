@@ -121,3 +121,170 @@ def test_a_crashing_case_is_recorded_as_a_failure_not_raised(monkeypatch):
     assert out["passed"] is False
     assert out["reason"] == "error: RuntimeError: Bedrock is down"
     assert out["category"] == "market" and out["input_tokens"] == 0
+
+
+# --- Upstream outages: scored apart from failures, never hiding a real bug ---
+
+import requests  # noqa: E402
+from botocore.exceptions import ClientError  # noqa: E402
+from curl_cffi.requests import exceptions as curl_errors  # noqa: E402
+from langchain_core.messages import HumanMessage  # noqa: E402
+from yfinance.exceptions import YFDataException, YFRateLimitError  # noqa: E402
+
+import nodes  # noqa: E402
+
+YAHOO_DOWN = "*** YAHOO! FINANCE IS CURRENTLY DOWN! ***"
+
+
+def http_error(status, url="https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"):
+    response = requests.Response()
+    response.status_code, response.url = status, url
+    return requests.HTTPError(response=response)
+
+
+def chained(outer, cause):
+    outer.__cause__ = cause
+    return outer
+
+
+@pytest.mark.parametrize("exc, reason", [
+    (YFDataException(YAHOO_DOWN), "Yahoo Finance down"),
+    (YFRateLimitError(), "Yahoo Finance rate limit"),
+    (ClientError({"Error": {"Code": "ThrottlingException"}}, "Converse"), "Bedrock ThrottlingException"),
+    (http_error(503), "HTTP 503 from data.sec.gov"),
+    (http_error(429), "HTTP 429 from data.sec.gov"),
+    (requests.ConnectionError("reset"), "network ConnectionError"),
+    (chained(RuntimeError("wrapped"), YFDataException(YAHOO_DOWN)), "Yahoo Finance down"),
+    # Our bugs or config, which must still fail the case:
+    (ClientError({"Error": {"Code": "AccessDeniedException"}}, "Rerank"), None),
+    (YFDataException("Failed to parse json response from Yahoo Finance: {}"), None),
+    (http_error(404), None),
+    (KeyError("price"), None),
+    (None, None),
+])
+def test_upstream_reason_names_outages_only(exc, reason):
+    assert behavior.upstream_reason(exc) == reason
+
+
+def fake_graph():
+    """A graph whose one turn runs the real tools_node on a get_news call (patch the tool to raise)."""
+    class Graph:
+        def invoke(self, state, config):
+            call = AIMessage("", tool_calls=[{"name": "get_news", "args": {}, "id": "1", "type": "tool_call"}])
+            [result] = nodes.tools_node({"messages": [call]})["messages"]
+            tool = ToolMessage(result["content"], tool_call_id="1", status="error")
+            return {"messages": [HumanMessage(state["messages"][0][1]), call, tool,
+                                 AIMessage("Headlines are unavailable right now.")]}
+    return Graph()
+
+
+@pytest.mark.parametrize("tool_error, upstream", [
+    (YFDataException(YAHOO_DOWN), "Yahoo Finance down"),
+    (RuntimeError("bug in get_news"), None),
+])
+def test_a_case_failed_by_an_outage_is_upstream_not_failed(monkeypatch, tool_error, upstream):
+    class Raises:
+        def invoke(self, args):
+            raise tool_error
+
+    monkeypatch.setitem(nodes.TOOLS_BY_NAME, "get_news", Raises())
+    monkeypatch.setattr(behavior, "with_memory", lambda saver: fake_graph())
+    monkeypatch.setattr(behavior.time, "sleep", lambda s: None)
+    case = {"category": "news", "question": "What is the biggest news today?",
+            "expect_tool": "get_news", "tool_says": "Recent headlines"}
+    out = behavior.run_case(case)
+    assert out["passed"] is False and out["upstream"] == upstream
+    # The handler is removed after the case, so outages can't leak into the next one.
+    assert not any(isinstance(h, behavior._OutageLog) for h in nodes.log.handlers)
+
+
+def test_a_throttled_crash_is_upstream(monkeypatch):
+    def throttled(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "ThrottlingException"}}, "Converse")
+
+    monkeypatch.setattr(behavior, "with_memory", throttled)
+    out = behavior.run_case({"question": "FY2020 revenue?", "category": "financebench"})
+    assert out["passed"] is False and out["upstream"] == "Bedrock ThrottlingException"
+
+
+def outage(category):
+    return {**result(category, False), "upstream": "Yahoo Finance down"}
+
+
+def test_upstream_cases_are_left_out_of_the_pass_rate():
+    s = results.summarize([result("news", True), result("news", False), outage("news"), outage("page")])
+    assert (s["passed"], s["scored"], s["upstream"], s["total"]) == (1, 2, 2, 4)
+    assert s["pass_rate"] == 0.5
+    assert s["by_category"] == {"news": {"passed": 1, "total": 2, "upstream": 1},
+                                "page": {"passed": 0, "total": 0, "upstream": 1}}
+    # An outage on a case that still passed doesn't matter: it's a pass.
+    assert results.summarize([{**result("news", True), "upstream": "x"}])["upstream"] == 0
+
+
+def test_bar_fails_low_scores_and_runs_that_outages_left_unmeasured():
+    healthy = results.summarize([result("m", True)] * 14 + [outage("m")] * 3 + [result("m", False)])
+    assert behavior.below_bar(healthy, 0.8) is None  # 14/15 scored
+    low = results.summarize([result("m", True)] * 3 + [result("m", False)] * 2)
+    assert "below 80%" in behavior.below_bar(low, 0.8)
+    mostly_down = results.summarize([result("m", True)] * 2 + [outage("m")] * 3)
+    assert behavior.below_bar(mostly_down, 0.8).startswith("inconclusive")
+    assert behavior.below_bar(mostly_down, 0.0) is None  # no bar outside CI
+
+
+def test_report_shows_upstream_cases_and_reads_old_runs(tmp_path):
+    results.save("behavior", "haiku", [result("news", True), outage("news")], tmp_path)
+    text = results.report(results.load_history(tmp_path))
+    assert "| behavior | 1/1 (100%) +1 upstream |" in text
+    assert "UPSTREAM `news-False-1000` (news): x [outage: Yahoo Finance down, not scored]" in text
+    old = {"run_at": "2026-11-09T23:14:05+00:00", "commit": "e7fc029", "suite": "behavior",
+           "summary": {"passed": 1, "total": 2, "latency_ms_p50": 1000, "est_cost_usd": 0.1,
+                       "rewrites": 0, "figures_unverified": 0,
+                       "by_category": {"news": {"passed": 1, "total": 2}}},
+           "cases": [result("news", True), result("news", False)]}
+    assert "| behavior | 1/2 (50%) |" in results.report([old])
+
+
+def implicit(outer, context):
+    outer.__context__ = context
+    return outer
+
+
+@pytest.mark.parametrize("exc, reason", [
+    (curl_errors.Timeout("Yahoo timed out"), "network Timeout"),
+    (requests.exceptions.SSLError("certificate verify failed"), None),
+    (curl_errors.SSLError("certificate verify failed"), None),
+    # A bug raised while handling an outage (no `from`) is still a bug.
+    (implicit(KeyError("price"), ClientError({"Error": {"Code": "ThrottlingException"}}, "Converse")), None),
+])
+def test_upstream_reason_covers_yahoo_transport_but_not_bugs_in_handlers(exc, reason):
+    assert behavior.upstream_reason(exc) == reason
+
+
+def test_a_crash_after_a_logged_outage_is_still_our_bug(monkeypatch):
+    class YahooDown:
+        def invoke(self, args):
+            raise YFDataException(YAHOO_DOWN)
+
+    class Graph:
+        def invoke(self, state, config):
+            call = AIMessage("", tool_calls=[{"name": "get_news", "args": {}, "id": "1", "type": "tool_call"}])
+            nodes.tools_node({"messages": [call]})  # the real node logs the outage
+            raise KeyError("price")  # then our code crashes
+
+    monkeypatch.setitem(nodes.TOOLS_BY_NAME, "get_news", YahooDown())
+    monkeypatch.setattr(behavior, "with_memory", lambda saver: Graph())
+    monkeypatch.setattr(behavior.time, "sleep", lambda s: None)
+    out = behavior.run_case({"question": "Any news?", "category": "news"})
+    assert out["passed"] is False and out["upstream"] is None
+
+
+def test_only_tools_node_failures_count_as_outages():
+    import logging
+
+    outages = behavior._OutageLog()
+    down = YFDataException(YAHOO_DOWN)
+    for func in ("embed_filings", "tools_node"):  # a recovered fallback, then a failed tool
+        record = logging.LogRecord("capstone", logging.ERROR, "x.py", 1, "failed", None,
+                                   (type(down), down, None), func=func)
+        outages.emit(record)
+        assert outages.reasons == (set() if func == "embed_filings" else {"Yahoo Finance down"})

@@ -25,12 +25,23 @@ Every case also fails on a Note:/Disclaimer: line, a link or bare URL no tool
 returned, an answer that used tool data without a source link, or a figure
 the verify node (verify.py) still couldn't match to a tool result after its
 rewrite. Each case has a category, so the score shows which ability moved.
+
+A case that fails while Yahoo, SEC, or Bedrock had a known outage (see
+upstream_reason) is scored "upstream" instead of failed, and is left out of
+the pass rate, so an outage doesn't read as a regression. Anything else a
+tool raises, including AccessDenied, still fails the case.
+
 Needs AWS (Bedrock) and internet (Yahoo). Costs a few cents per run.
 """
+import logging
 import re
 import time
 
-from botocore.exceptions import ClientError
+import requests
+from botocore.exceptions import (ClientError, ConnectTimeoutError, EndpointConnectionError,
+                                 ReadTimeoutError)
+from curl_cffi.requests import exceptions as curl_errors
+from yfinance.exceptions import YFDataException, YFRateLimitError
 
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -54,6 +65,13 @@ LINK = re.compile(r"\]\(([^)\s]+)\)")
 # The panel won't make it clickable, but the user can still copy it; one
 # answer pasted an EDGAR URL with Amazon's company ID for a Tesla question.
 BARE_URL = re.compile(r"https?://[^\s)\]>\"']+")
+# Bedrock errors that are AWS's capacity, not this project's config. Not here
+# on purpose: AccessDenied, Validation, ResourceNotFound, quota exceeded.
+UPSTREAM_BEDROCK_CODES = {"ThrottlingException", "ServiceUnavailableException",
+                          "InternalServerException", "ModelNotReadyException"}
+# If outages leave fewer than this share of a suite scored, the run measured
+# nothing and the CI bar fails it as inconclusive.
+MIN_SCORED_SHARE = 0.5
 
 test_cases: list[dict] = [
     {
@@ -283,6 +301,68 @@ def check(case, messages, earlier=(), number_check=None):
     return True, ""
 
 
+def upstream_reason(exc: BaseException | None) -> str | None:
+    """Name the outage outside this code that `exc` reports, or None if it could be our bug.
+
+    Follows explicit causes (`raise ... from e`) only, not the implicit
+    context: a bug raised while handling an outage is still a bug.
+    Deliberately narrow: a missed outage costs a red CI run, but a bug
+    mistaken for an outage hides a regression.
+    """
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        if isinstance(exc, YFRateLimitError):
+            return "Yahoo Finance rate limit"
+        # yfinance raises YFDataException for parse errors and missing data
+        # too; only this message means Yahoo itself is down.
+        if isinstance(exc, YFDataException) and "CURRENTLY DOWN" in str(exc):
+            return "Yahoo Finance down"
+        if isinstance(exc, ClientError):
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in UPSTREAM_BEDROCK_CODES:
+                return f"Bedrock {code}"
+        if isinstance(exc, (EndpointConnectionError, ConnectTimeoutError, ReadTimeoutError)):
+            return "AWS unreachable"
+        # Certificate and proxy errors are subclasses of ConnectionError, but
+        # they're our machine's setup, not the server being down.
+        if isinstance(exc, (requests.exceptions.SSLError, requests.exceptions.ProxyError,
+                            curl_errors.SSLError, curl_errors.ProxyError)):
+            return None
+        # requests for SEC; curl_cffi for Yahoo (yfinance's HTTP client).
+        if isinstance(exc, (requests.ConnectionError, requests.Timeout,
+                            curl_errors.ConnectionError, curl_errors.Timeout)):
+            return f"network {type(exc).__name__}"
+        if isinstance(exc, requests.HTTPError) and exc.response is not None:
+            status = exc.response.status_code
+            if status == 429 or status >= 500:
+                host = requests.utils.urlparse(exc.response.url or "").hostname or "server"
+                return f"HTTP {status} from {host}"
+        exc = exc.__cause__
+    return None
+
+
+class _OutageLog(logging.Handler):
+    """Collects the outages tools hit during one case.
+
+    tools_node turns a tool's exception into an error result the model reads,
+    and logs it with log.exception on the "capstone" logger; this reads them
+    back from there, so the product code needs no eval hooks. Only tools_node's
+    records count: other code logs fallbacks it recovered from on the same
+    logger (live_filings ranks by keywords when embedding fails).
+    """
+
+    def __init__(self):
+        super().__init__(logging.ERROR)
+        self.reasons: set[str] = set()
+
+    def emit(self, record):
+        if record.funcName != "tools_node" or not record.exc_info:
+            return
+        if reason := upstream_reason(record.exc_info[1]):
+            self.reasons.add(reason)
+
+
 def _invoke(graph, question, config, pause=True):
     """One turn, spaced out and retried once, because Bedrock throttles bursts."""
     if pause:
@@ -305,13 +385,17 @@ def run_case(case, grade=None):
 
     `grade(answer) -> (passed, reason)` replaces the behavior checks, for
     suites with a known answer (FinanceBench). A crash is a failed case, not
-    a failed run, so one bad case can't hide the other scores in CI.
+    a failed run, so one bad case can't hide the other scores in CI. A case
+    that fails while a tool or Bedrock hit an outage records it in "upstream".
     """
     original = market_data.get_news
     if "stub_news" in case:
         def stub_news(symbol: str | None = None, limit: int = 8, _h=case["stub_news"]) -> list[dict]:
             return _h
         market_data.get_news = stub_news
+    outages = _OutageLog()
+    capstone_log = logging.getLogger("capstone")
+    capstone_log.addHandler(outages)
     started = time.monotonic()
     try:
         # Multi-turn cases replay earlier questions on one thread first.
@@ -333,12 +417,21 @@ def run_case(case, grade=None):
             passed, reason = grade(answer)
         else:
             passed, reason = check(case, turn, earlier, number_check)
-        return results.case_result(case, passed, reason, answer, latency_ms, turn, number_check)
+        upstream = None if passed else _joined(outages.reasons)
+        return results.case_result(case, passed, reason, answer, latency_ms, turn, number_check, upstream)
     except Exception as e:  # noqa: BLE001 - record and keep going
         latency_ms = round((time.monotonic() - started) * 1000)
-        return results.case_result(case, False, f"error: {type(e).__name__}: {e}"[:300], "", latency_ms)
+        # Only the exception that escaped decides. tools_node already turned
+        # every tool outage into a result, so a crash after one is our bug.
+        return results.case_result(case, False, f"error: {type(e).__name__}: {e}"[:300], "", latency_ms,
+                                   upstream=upstream_reason(e))
     finally:
+        capstone_log.removeHandler(outages)
         market_data.get_news = original
+
+
+def _joined(reasons: set[str]) -> str | None:
+    return ", ".join(sorted(reasons)) or None
 
 
 def run_suite(suite: str, limit: int | None = None) -> list[dict]:
@@ -353,14 +446,31 @@ def run_suite(suite: str, limit: int | None = None) -> list[dict]:
 def print_results(suite, cases):
     print(f"--- {suite} ---")
     for c in cases:
-        print(f"[{'PASS' if c['passed'] else 'FAIL'}] {c['category']:12} {c['id']}")
+        label = "PASS" if c["passed"] else "UPSTREAM" if c.get("upstream") else "FAIL"
+        print(f"[{label}] {c['category']:12} {c['id']}")
         if not c["passed"]:
             print(f"       why: {c['reason']}")
+            if c.get("upstream"):
+                print(f"       outage: {c['upstream']} (not scored)")
             print(f"       got: {c['answer'][:300]!r}")
     s = results.summarize(cases)
-    cats = ", ".join(f"{k} {v['passed']}/{v['total']}" for k, v in s["by_category"].items())
-    print(f"\n{s['passed']}/{s['total']} passed ({cats}); p50 {s['latency_ms_p50'] / 1000:.1f}s, "
+    cats = ", ".join(f"{k} {v['passed']}/{v['total']}" + (f" +{v['upstream']} upstream" if v.get("upstream") else "")
+                     for k, v in s["by_category"].items())
+    outages = f", {s['upstream']} not scored (upstream outage)" if s["upstream"] else ""
+    print(f"\n{s['passed']}/{s['scored']} passed{outages} ({cats}); p50 {s['latency_ms_p50'] / 1000:.1f}s, "
           f"~${s['est_cost_usd']:.2f}, {s['rewrites']} rewrites\n")
+
+
+def below_bar(summary: dict, min_pass_rate: float) -> str | None:
+    """Why a suite fails the CI bar, or None. Too few scored cases is inconclusive, not a pass."""
+    if not min_pass_rate:
+        return None
+    if summary["scored"] < MIN_SCORED_SHARE * summary["total"]:
+        return (f"inconclusive: only {summary['scored']}/{summary['total']} cases scored; "
+                f"the rest hit upstream outages")
+    if summary["pass_rate"] < min_pass_rate:
+        return f"pass rate {summary['pass_rate']:.0%} is below {min_pass_rate:.0%}"
+    return None
 
 
 if __name__ == "__main__":
@@ -381,6 +491,7 @@ if __name__ == "__main__":
         print_results(suite, cases)
         if not args.no_save and cases:
             print("saved", results.save(suite, os.environ.get("BEDROCK_MODEL_ID"), cases))
-        if results.summarize(cases)["pass_rate"] < args.min_pass_rate:
+        if why := below_bar(results.summarize(cases), args.min_pass_rate):
+            print(f"{suite} fails the bar: {why}")
             failed_bar = True
     raise SystemExit(1 if failed_bar else 0)
